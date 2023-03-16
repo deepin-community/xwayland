@@ -3,10 +3,10 @@ project('xwayland', 'c',
             'buildtype=debugoptimized',
             'c_std=gnu99',
         ],
-        version: '22.1.1',
+        version: '22.1.8',
         meson_version: '>= 0.47.0',
 )
-release_date = '2021-07-05'
+release_date = '2023-02-07'
 
 add_project_arguments('-DHAVE_DIX_CONFIG_H', language: ['c', 'objc'])
 cc = meson.get_compiler('c')
@@ -63,7 +63,7 @@ add_project_arguments(common_wflags, language : ['c', 'objc'])
 libdrm_req = '>= 2.4.89'
 libselinux_req = '>= 2.0.86'
 xext_req = '>= 1.0.99.4'
-wayland_req = '>= 1.5.0'
+wayland_req = '>= 1.18.0'
 wayland_protocols_req = '>= 1.22'
 gbm_req = '>= 10.2'
 

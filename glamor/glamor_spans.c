@@ -57,7 +57,6 @@ glamor_fill_spans_gl(DrawablePtr drawable,
     int c;
     int box_index;
     Bool ret = FALSE;
-    short *tmpv = NULL;
 
     pixmap_priv = glamor_get_pixmap_private(pixmap);
     if (!GLAMOR_PIXMAP_PRIV_HAS_FBO(pixmap_priv))
@@ -80,20 +79,14 @@ glamor_fill_spans_gl(DrawablePtr drawable,
         glVertexAttribDivisor(GLAMOR_VERTEX_POS, 1);
         glVertexAttribPointer(GLAMOR_VERTEX_POS, 3, GL_SHORT, GL_FALSE,
                               4 * sizeof (GLshort), vbo_offset);
-        if(!tmpv )
-            tmpv = (short *)malloc(sizeof(short)*4*n);
-
-        int cnt = 0 ;
 
         for (c = 0; c < n; c++) {
-            tmpv[0 + cnt] = points->x;
-            tmpv[1 + cnt] = points->y;
-            tmpv[2 + cnt] = *widths++;
+            v[0] = points->x;
+            v[1] = points->y;
+            v[2] = *widths++;
             points++;
-            cnt += 4;
+            v += 4;
         }
-        memcpy(v, tmpv, sizeof(short)*n*4);
-        free(tmpv);
 
         glamor_put_vbo_space(screen);
     } else {

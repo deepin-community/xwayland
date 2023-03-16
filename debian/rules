@@ -2,6 +2,8 @@
 
 include /usr/share/dpkg/pkg-info.mk
 
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
 SUPPORT = https://www.debian.org/support
 
 %:
@@ -17,8 +19,6 @@ override_dh_auto_install:
 
 	rm -rf debian/tmp/usr/lib/*/xorg/protocol.txt
 	rm -f debian/tmp/usr/share/man/man1/Xserver.1
-	# for now
-	rm -f debian/tmp/usr/lib/*/pkgconfig/xwayland.pc 
 
 override_dh_clean:
 	dh_clean
@@ -29,5 +29,3 @@ override_dh_clean:
 gentarball:
 	git archive --format=tar upstream-unstable --prefix=$(DEB_SOURCE)-$(DEB_VERSION_UPSTREAM)/ \
 		| gzip -9 > ../$(DEB_SOURCE)_$(DEB_VERSION_UPSTREAM).orig.tar.gz
-
-override_dh_auto_test:

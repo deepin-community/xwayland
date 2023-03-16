@@ -173,6 +173,7 @@ xwl_close_screen(ScreenPtr screen)
     struct xwl_screen *xwl_screen = xwl_screen_get(screen);
     struct xwl_output *xwl_output, *next_xwl_output;
     struct xwl_seat *xwl_seat, *next_xwl_seat;
+    struct xwl_wl_surface *xwl_wl_surface, *xwl_wl_surface_next;
 
     DeleteCallback(&PropertyStateCallback, xwl_property_callback, screen);
 
@@ -191,6 +192,10 @@ xwl_close_screen(ScreenPtr screen)
                                   &xwl_screen->drm_lease_devices, link)
         xwl_screen_destroy_drm_lease_device(xwl_screen,
                                             device_data->drm_lease_device);
+
+    xorg_list_for_each_entry_safe(xwl_wl_surface, xwl_wl_surface_next,
+                                  &xwl_screen->pending_wl_surface_destroy, link)
+        xwl_window_surface_do_destroy(xwl_wl_surface);
 
     RemoveNotifyFd(xwl_screen->wayland_fd);
 
@@ -580,6 +585,53 @@ xwl_screen_roundtrip(struct xwl_screen *xwl_screen)
         xwl_give_up("could not connect to wayland server\n");
 }
 
+static int
+xwl_server_grab(ClientPtr client)
+{
+    struct xwl_screen *xwl_screen;
+
+    /* Allow GrabServer for the X11 window manager.
+     * Xwayland only has 1 screen (no Zaphod for Xwayland) so we check
+     * for the first and only screen here.
+     */
+    xwl_screen = xwl_screen_get(screenInfo.screens[0]);
+    if (xwl_screen->wm_client_id == client->index)
+        return xwl_screen->GrabServer(client);
+
+    /* For all other clients, just pretend it works for compatibility,
+       but do nothing */
+    return Success;
+}
+
+static int
+xwl_server_ungrab(ClientPtr client)
+{
+    struct xwl_screen *xwl_screen;
+
+    /* Same as above, allow UngrabServer for the X11 window manager only */
+    xwl_screen = xwl_screen_get(screenInfo.screens[0]);
+    if (xwl_screen->wm_client_id == client->index)
+        return xwl_screen->UngrabServer(client);
+
+    /* For all other clients, just pretend it works for compatibility,
+       but do nothing */
+    return Success;
+}
+
+static void
+xwl_screen_setup_custom_vector(struct xwl_screen *xwl_screen)
+{
+    /* Rootfull Xwayland does not need a custom ProcVector (yet?) */
+    if (!xwl_screen->rootless)
+        return;
+
+    xwl_screen->GrabServer = ProcVector[X_GrabServer];
+    xwl_screen->UngrabServer = ProcVector[X_UngrabServer];
+
+    ProcVector[X_GrabServer] = xwl_server_grab;
+    ProcVector[X_UngrabServer] = xwl_server_ungrab;
+}
+
 Bool
 xwl_screen_init(ScreenPtr pScreen, int argc, char **argv)
 {
@@ -664,6 +716,7 @@ xwl_screen_init(ScreenPtr pScreen, int argc, char **argv)
     xorg_list_init(&xwl_screen->drm_lease_devices);
     xorg_list_init(&xwl_screen->queued_drm_lease_devices);
     xorg_list_init(&xwl_screen->drm_leases);
+    xorg_list_init(&xwl_screen->pending_wl_surface_destroy);
     xwl_screen->depth = 24;
 
     if (!monitorResolution)
@@ -790,6 +843,8 @@ xwl_screen_init(ScreenPtr pScreen, int argc, char **argv)
 
     AddCallback(&PropertyStateCallback, xwl_property_callback, pScreen);
     AddCallback(&RootWindowFinalizeCallback, xwl_root_window_finalized_callback, pScreen);
+
+    xwl_screen_setup_custom_vector(xwl_screen);
 
     xwl_screen_roundtrip(xwl_screen);
 

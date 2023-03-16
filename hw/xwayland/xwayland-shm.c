@@ -43,10 +43,6 @@
 #include "xwayland-screen.h"
 #include "xwayland-shm.h"
 
-#include <sys/timeb.h>
-#include <unistd.h>
-#include <sys/sdt.h>
-
 struct xwl_pixmap {
     struct wl_buffer *buffer;
     void *data;
@@ -221,9 +217,6 @@ static const struct wl_buffer_listener xwl_shm_buffer_listener = {
     xwl_pixmap_buffer_release_cb,
 };
 
-struct timeb lastTime;
-int timeCreatePixmap=0;
-int intervalCreatePixmap=5;
 PixmapPtr
 xwl_shm_create_pixmap(ScreenPtr screen,
                       int width, int height, int depth, unsigned int hint)
@@ -287,22 +280,6 @@ xwl_shm_create_pixmap(ScreenPtr screen,
                            &xwl_shm_buffer_listener, pixmap);
 
     xwl_pixmap_set_private(pixmap, xwl_pixmap);
-
-    if (timeCreatePixmap == 0) {
-        ftime(&lastTime);
-    } else if (timeCreatePixmap % intervalCreatePixmap == intervalCreatePixmap - 1) {
-        struct timeb endTime;
-        ftime(&endTime);
-        int diff = (endTime.time - lastTime.time) * 1000 + (endTime.millitm - lastTime.millitm);
-        if (diff < 30) {
-            usleep(30000);
-            DTRACE_PROBE(xwayland_socket, create_fd_sleep);
-        }
-        lastTime = endTime;
-    }
-    timeCreatePixmap++;
-    if (timeCreatePixmap >= 1000)
-        timeCreatePixmap = 0;
 
     return pixmap;
 
