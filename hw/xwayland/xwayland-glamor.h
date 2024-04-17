@@ -28,7 +28,10 @@
 
 #include <xwayland-config.h>
 
+#include <sys/types.h>
+
 #include <wayland-client.h>
+#include <xf86drm.h>
 
 #include "xwayland-types.h"
 
@@ -96,6 +99,14 @@ struct xwl_egl_backend {
      * presented by xwl_present_flip. If not implemented, assumed TRUE.
      */
     Bool (*check_flip)(PixmapPtr pixmap);
+
+    /* Called to get the DRM device of the primary GPU that this backend
+     * is set up on.
+     */
+    drmDevice *(*get_main_device)(struct xwl_screen *xwl_screen);
+
+    /* Direct hook to create the backing pixmap for a window */
+    PixmapPtr (*create_pixmap_for_window)(struct xwl_window *xwl_window);
 };
 
 #ifdef XWL_HAS_GLAMOR
@@ -108,6 +119,7 @@ Bool xwl_glamor_init(struct xwl_screen *xwl_screen);
 
 Bool xwl_screen_set_drm_interface(struct xwl_screen *xwl_screen,
                                   uint32_t id, uint32_t version);
+Bool xwl_dmabuf_setup_feedback_for_window(struct xwl_window *xwl_window);
 Bool xwl_screen_set_dmabuf_interface(struct xwl_screen *xwl_screen,
                                      uint32_t id, uint32_t version);
 struct wl_buffer *xwl_glamor_pixmap_get_wl_buffer(PixmapPtr pixmap);
@@ -130,7 +142,15 @@ Bool xwl_glamor_get_formats(ScreenPtr screen,
                             CARD32 *num_formats, CARD32 **formats);
 Bool xwl_glamor_get_modifiers(ScreenPtr screen, uint32_t format,
                               uint32_t *num_modifiers, uint64_t **modifiers);
-Bool xwl_glamor_check_flip(PixmapPtr pixmap);
+Bool xwl_glamor_get_drawable_modifiers_and_scanout(DrawablePtr drawable,
+                                                   uint32_t format,
+                                                   uint32_t *num_modifiers,
+                                                   uint64_t **modifiers,
+                                                   Bool *supports_scanout);
+Bool xwl_glamor_get_drawable_modifiers(DrawablePtr drawable, uint32_t format,
+                                       uint32_t *num_modifiers, uint64_t **modifiers);
+Bool xwl_glamor_check_flip(WindowPtr present_window, PixmapPtr pixmap);
+PixmapPtr xwl_glamor_create_pixmap_for_window (struct xwl_window *xwl_window);
 
 #ifdef XV
 /* glamor Xv Adaptor */

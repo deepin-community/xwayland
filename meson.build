@@ -3,10 +3,10 @@ project('xwayland', 'c',
             'buildtype=debugoptimized',
             'c_std=gnu99',
         ],
-        version: '22.1.8',
-        meson_version: '>= 0.47.0',
+        version: '23.2.6',
+        meson_version: '>= 0.52.0',
 )
-release_date = '2023-02-07'
+release_date = '2024-04-09'
 
 add_project_arguments('-DHAVE_DIX_CONFIG_H', language: ['c', 'objc'])
 cc = meson.get_compiler('c')
@@ -60,11 +60,11 @@ endforeach
 
 add_project_arguments(common_wflags, language : ['c', 'objc'])
 
-libdrm_req = '>= 2.4.89'
+libdrm_req = '>= 2.4.109'
 libselinux_req = '>= 2.0.86'
 xext_req = '>= 1.0.99.4'
-wayland_req = '>= 1.18.0'
-wayland_protocols_req = '>= 1.22'
+wayland_req = '>= 1.21.0'
+wayland_protocols_req = '>= 1.30'
 gbm_req = '>= 10.2'
 
 xproto_dep = dependency('xproto', version: '>= 7.0.31', fallback: ['xorgproto', 'ext_xorgproto'])
@@ -78,6 +78,7 @@ fixesproto_dep = dependency('fixesproto', version: '>= 6.0', fallback: ['xorgpro
 damageproto_dep = dependency('damageproto', version: '>= 1.1', fallback: ['xorgproto', 'ext_xorgproto'])
 xcmiscproto_dep = dependency('xcmiscproto', version: '>= 1.2.0', fallback: ['xorgproto', 'ext_xorgproto'])
 bigreqsproto_dep = dependency('bigreqsproto', version: '>= 1.1.0', fallback: ['xorgproto', 'ext_xorgproto'])
+presentproto_dep = dependency('presentproto', version: '>= 1.3', fallback: ['xorgproto', 'ext_xorgproto'])
 xtrans_dep = dependency('xtrans', version: '>= 1.3.5')
 
 videoproto_dep = dependency('videoproto', fallback: ['xorgproto', 'ext_xorgproto'])
@@ -90,12 +91,19 @@ xineramaproto_dep = dependency('xineramaproto', fallback: ['xorgproto', 'ext_xor
 xf86bigfontproto_dep = dependency('xf86bigfontproto', version: '>= 1.2.0', fallback: ['xorgproto', 'ext_xorgproto'], required: get_option('xf86bigfont'))
 xf86vidmodeproto_dep = dependency('xf86vidmodeproto', version: '>= 2.2.99.1', fallback: ['xorgproto', 'ext_xorgproto'])
 xshmfence_dep = dependency('xshmfence', version: '>= 1.1', required: false)
+xwaylandproto_dep = dependency('xwaylandproto', version: '>= 1.0', fallback: ['xorgproto', 'ext_xorgproto'], required: false)
 
 pixman_dep = dependency('pixman-1')
-libbsd_dep = dependency('libbsd', required: false)
+libbsd_dep = dependency('libbsd-overlay', required: false)
 xkbcomp_dep = dependency('xkbcomp', required: false)
 xkbfile_dep = dependency('xkbfile')
 xfont2_dep = dependency('xfont2', version: '>= 2.0')
+
+# libsystemd-daemon was moved into libsystemd in version 209
+libsystemd_daemon_dep = dependency('libsystemd', version: '>= 209', required: false)
+if not libsystemd_daemon_dep.found()
+    libsystemd_daemon_dep = dependency('libsystemd-daemon', required: false)
+endif
 
 build_hashtable = false
 
@@ -127,8 +135,15 @@ endif
 
 dfp = get_option('default_font_path')
 if dfp == ''
-    fontutil_dep = dependency('fontutil')
-    fontrootdir = fontutil_dep.get_pkgconfig_variable('fontrootdir')
+    fontrootdir = get_option('fontrootdir')
+    if fontrootdir == ''
+        fontutil_dep = dependency('fontutil', required: false)
+        if fontutil_dep.found()
+            fontrootdir = fontutil_dep.get_pkgconfig_variable('fontrootdir')
+        else
+            fontrootdir = join_paths(get_option('prefix'), get_option('datadir'), 'fonts', 'X11')
+        endif
+    endif
     dfp_elements = [
         join_paths(fontrootdir, 'misc'),
         join_paths(fontrootdir, 'TTF'),
@@ -186,8 +201,19 @@ if build_glamor
     epoxy_dep = dependency('epoxy', required: false)
 endif
 
+libdecor_dep = dependency('libdecor-0', required: false)
+libdecor_option = get_option('libdecor')
+if libdecor_option == 'auto'
+    have_libdecor = libdecor_dep.found()
+else
+    have_libdecor = libdecor_option == 'true'
+    if have_libdecor and not libdecor_dep.found()
+        error('libdecor support requested but not found')
+    endif
+endif
+
 eglstream_option = get_option('xwayland_eglstream')
-if build_xwayland and build_glamor
+if build_glamor
     eglstream_dep = dependency('wayland-eglstream-protocols', required:false)
     if eglstream_option == 'auto'
         build_eglstream = eglstream_dep.found()
@@ -199,6 +225,17 @@ if build_xwayland and build_glamor
     endif
 else
     build_eglstream = false
+endif
+
+if build_xwayland
+    libei_dep = dependency('libei-1.0', version: '>= 1.0.0', required: get_option('xwayland_ei') in ['portal', 'socket'])
+    liboeffis_dep = dependency('liboeffis-1.0', version: '>= 1.0.0', required: get_option('xwayland_ei') == 'portal')
+
+    build_ei = libei_dep.found() and get_option('xwayland_ei') != 'false'
+    build_ei_portal = liboeffis_dep.found() and get_option('xwayland_ei') in ['portal', 'auto']
+else
+    build_ei = false
+    build_ei_portal = false
 endif
 
 # Lots of sha1 options, because Linux is about choice :)
@@ -368,7 +405,9 @@ common_dep = [
     damageproto_dep,
     xcmiscproto_dep,
     bigreqsproto_dep,
+    presentproto_dep,
     xtrans_dep,
+    libsystemd_daemon_dep,
 
     videoproto_dep,
     compositeproto_dep,
@@ -437,7 +476,10 @@ glx_inc = include_directories('glx')
 
 top_dir_inc = include_directories('.')
 
-serverconfigdir = join_paths(get_option('prefix'), get_option('libdir'), 'xorg')
+serverconfigdir = get_option('serverconfigdir')
+if serverconfigdir == ''
+    serverconfigdir = join_paths(get_option('prefix'), get_option('libdir'), 'xorg')
+endif
 
 manpage_config = configuration_data()
 manpage_config.set('vendorversion', '"xorg-server @0@" "X Version 11"'.format(meson.project_version()))

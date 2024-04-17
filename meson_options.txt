@@ -2,6 +2,8 @@ option('glamor', type: 'boolean', value: true,
        description: 'Enable glamor (default yes)')
 option('xwayland_eglstream', type: 'combo', choices: ['true', 'false', 'auto'],
        value: 'auto', description: 'Enable EGLStream support for glamor on Xwayland')
+option('xwayland_ei', type: 'combo', choices: ['socket', 'portal', 'false', 'auto'],
+       value: 'auto', description: 'Enable emulated input support on Xwayland')
 option('xvfb', type: 'boolean', value: true,
        description: 'Enable Xvfb X server')
 
@@ -10,6 +12,10 @@ option('builder_addr', type: 'string', description: 'Builder address', value: 'x
 option('builder_string', type: 'string', description: 'Additional builder string')
 
 option('default_font_path', type: 'string')
+option('fontrootdir', type: 'string',
+        description: 'Root directory for legacy fonts. Default: from font-utils.pc or $datadir/fonts/X11')
+option('serverconfigdir', type: 'string',
+        description: 'Miscellaneous server configuration files path. Default: $libdir/xorg')
 
 option('glx', type: 'boolean', value: true)
 option('xdmcp', type: 'boolean', value: true)
@@ -65,13 +71,15 @@ option('sha1', type: 'combo', choices: ['libc', 'CommonCrypto', 'CryptoAPI', 'li
        description: 'SHA1 implementation')
 
 option('dri3', type: 'combo', choices: ['true', 'false', 'auto'], value: 'auto', description: 'Build DRI3 extension (default: auto)')
-option('drm', type: 'boolean', value: 'true',
+option('drm', type: 'boolean', value: true,
         description: 'Build Xorg with libdrm support')
 
 option('libunwind', type: 'boolean', value: false,
         description: 'Use libunwind for backtrace reporting')
 
 option('xwayland-path', type: 'string', description: 'Directory containing Xwayland executable')
+option('libdecor', type: 'combo', choices: ['true', 'false', 'auto'], value: 'auto',
+        description: 'Whether Xwayland should use libdecor when running rootful.')
 
 option('docs', type: 'combo', choices: ['true', 'false', 'auto'], value: 'auto',
         description: 'Build documentation')

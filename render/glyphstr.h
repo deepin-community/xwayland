@@ -102,6 +102,9 @@ HashGlyph(xGlyphInfo * gi,
 extern void
  AddGlyph(GlyphSetPtr glyphSet, GlyphPtr glyph, Glyph id);
 
+extern void
+FreeGlyph(GlyphPtr glyph, int format);
+
 extern Bool
  DeleteGlyph(GlyphSetPtr glyphSet, Glyph id);
 

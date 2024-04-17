@@ -283,6 +283,8 @@ AddInputDevice(ClientPtr client, DeviceProc deviceProc, Bool autoStart)
     dev->deviceGrab.DeactivateGrab = DeactivateKeyboardGrab;
     dev->deviceGrab.sync.event = calloc(1, sizeof(InternalEvent));
 
+    dev->sendEventsProc = XTestDeviceSendEvents;
+
     XkbSetExtension(dev, ProcessKeyboardEvent);
 
     dev->coreEvents = TRUE;
@@ -422,6 +424,10 @@ EnableDevice(DeviceIntPtr dev, BOOL sendevent)
 
     if (!IsMaster(dev) && !IsFloating(dev))
         XkbPushLockedStateToSlaves(GetMaster(dev, MASTER_KEYBOARD), 0, 0);
+
+    /* Now make sure our LEDs are in sync with the locked state */
+    XkbForceUpdateDeviceLEDs(dev);
+
     RecalculateMasterButtons(dev);
 
     /* initialise an idle timer for this device*/
@@ -447,14 +453,20 @@ DisableDevice(DeviceIntPtr dev, BOOL sendevent)
 {
     DeviceIntPtr *prev, other;
     BOOL enabled;
+    BOOL dev_in_devices_list = FALSE;
     int flags[MAXDEVICES] = { 0 };
 
     if (!dev->enabled)
         return TRUE;
 
-    for (prev = &inputInfo.devices;
-         *prev && (*prev != dev); prev = &(*prev)->next);
-    if (*prev != dev)
+    for (other = inputInfo.devices; other; other = other->next) {
+        if (other == dev) {
+            dev_in_devices_list = TRUE;
+            break;
+        }
+    }
+
+    if (!dev_in_devices_list)
         return FALSE;
 
     TouchEndPhysicallyActiveTouches(dev);
@@ -466,6 +478,13 @@ DisableDevice(DeviceIntPtr dev, BOOL sendevent)
     /* float attached devices */
     if (IsMaster(dev)) {
         for (other = inputInfo.devices; other; other = other->next) {
+            if (!IsMaster(other) && GetMaster(other, MASTER_ATTACHED) == dev) {
+                AttachDevice(NULL, other, NULL);
+                flags[other->id] |= XISlaveDetached;
+            }
+        }
+
+        for (other = inputInfo.off_devices; other; other = other->next) {
             if (!IsMaster(other) && GetMaster(other, MASTER_ATTACHED) == dev) {
                 AttachDevice(NULL, other, NULL);
                 flags[other->id] |= XISlaveDetached;
@@ -505,6 +524,9 @@ DisableDevice(DeviceIntPtr dev, BOOL sendevent)
     LeaveWindow(dev);
     SetFocusOut(dev);
 
+    for (prev = &inputInfo.devices;
+         *prev && (*prev != dev); prev = &(*prev)->next);
+
     *prev = dev->next;
     dev->next = inputInfo.off_devices;
     inputInfo.off_devices = dev;
@@ -520,6 +542,7 @@ DisableDevice(DeviceIntPtr dev, BOOL sendevent)
     }
 
     RecalculateMasterButtons(dev);
+    dev->master = NULL;
 
     return TRUE;
 }
@@ -1064,6 +1087,11 @@ CloseDownDevices(void)
             dev->master = NULL;
     }
 
+    for (dev = inputInfo.off_devices; dev; dev = dev->next) {
+        if (!IsMaster(dev) && !IsFloating(dev))
+            dev->master = NULL;
+    }
+
     CloseDeviceList(&inputInfo.devices);
     CloseDeviceList(&inputInfo.off_devices);
 
@@ -1321,6 +1349,7 @@ InitValuatorClassDeviceStruct(DeviceIntPtr dev, int numAxes, Atom *labels,
     ValuatorClassPtr valc;
 
     BUG_RETURN_VAL(dev == NULL, FALSE);
+    BUG_RETURN_VAL(numAxes == 0, FALSE);
 
     if (numAxes > MAX_VALUATORS) {
         LogMessage(X_WARNING,
@@ -2525,6 +2554,8 @@ RecalculateMasterButtons(DeviceIntPtr slave)
 
     if (master->button && master->button->numButtons != maxbuttons) {
         int i;
+        int last_num_buttons = master->button->numButtons;
+
         DeviceChangedEvent event = {
             .header = ET_Internal,
             .type = ET_DeviceChanged,
@@ -2535,6 +2566,14 @@ RecalculateMasterButtons(DeviceIntPtr slave)
         };
 
         master->button->numButtons = maxbuttons;
+        if (last_num_buttons < maxbuttons) {
+            master->button->xkb_acts = xnfreallocarray(master->button->xkb_acts,
+                                                       maxbuttons,
+                                                       sizeof(XkbAction));
+            memset(&master->button->xkb_acts[last_num_buttons],
+                   0,
+                   (maxbuttons - last_num_buttons) * sizeof(XkbAction));
+        }
 
         memcpy(&event.buttons.names, master->button->labels, maxbuttons *
                sizeof(Atom));
@@ -2622,11 +2661,14 @@ AttachDevice(ClientPtr client, DeviceIntPtr dev, DeviceIntPtr master)
     if (IsFloating(dev) && !master && dev->enabled)
         return Success;
 
+    input_lock();
+
     /* free the existing sprite. */
     if (IsFloating(dev) && dev->spriteInfo->paired == dev) {
         screen = miPointerGetScreen(dev);
         screen->DeviceCursorCleanup(dev, screen);
         free(dev->spriteInfo->sprite);
+        dev->spriteInfo->sprite = NULL;
     }
 
     dev->master = master;
@@ -2662,6 +2704,7 @@ AttachDevice(ClientPtr client, DeviceIntPtr dev, DeviceIntPtr master)
         RecalculateMasterButtons(master);
     }
 
+    input_unlock();
     /* XXX: in theory, the MD should change back to its old, original
      * classes when the last SD is detached. Thanks to the XTEST devices,
      * we'll always have an SD attached until the MD is removed.

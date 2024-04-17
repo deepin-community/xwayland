@@ -559,7 +559,7 @@ xwl_glamor_eglstream_post_damage(struct xwl_window *xwl_window,
      * won't actually draw to it
      */
     xwl_glamor_egl_make_current(xwl_screen);
-    glamor_set_alu(xwl_screen->screen, GXcopy);
+    glamor_set_alu(&pixmap->drawable, GXcopy);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
@@ -932,7 +932,7 @@ static const dri3_screen_info_rec xwl_dri3_info = {
     .open_client = xwl_dri3_open_client,
     .get_formats = xwl_glamor_get_formats,
     .get_modifiers = xwl_glamor_get_modifiers,
-    .get_drawable_modifiers = glamor_get_drawable_modifiers,
+    .get_drawable_modifiers = xwl_glamor_get_drawable_modifiers,
 };
 
 static Bool
@@ -1118,6 +1118,7 @@ xwl_glamor_init_eglstream(struct xwl_screen *xwl_screen)
     xwl_screen->eglstream_backend.post_damage = xwl_glamor_eglstream_post_damage;
     xwl_screen->eglstream_backend.allow_commits = xwl_glamor_eglstream_allow_commits;
     xwl_screen->eglstream_backend.check_flip = xwl_glamor_eglstream_check_flip;
+    xwl_screen->eglstream_backend.get_main_device = NULL;
     xwl_screen->eglstream_backend.is_available = TRUE;
     xwl_screen->eglstream_backend.backend_flags = XWL_EGL_BACKEND_NO_FLAG;
 }

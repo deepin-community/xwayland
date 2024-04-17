@@ -111,6 +111,7 @@ enum shader_mask {
 enum shader_dest_swizzle {
     SHADER_DEST_SWIZZLE_DEFAULT,
     SHADER_DEST_SWIZZLE_ALPHA_TO_RED,
+    SHADER_DEST_SWIZZLE_IGNORE_ALPHA,
     SHADER_DEST_SWIZZLE_COUNT,
 };
 
@@ -216,6 +217,7 @@ typedef struct glamor_screen_private {
     Bool has_dual_blend;
     Bool has_clear_texture;
     Bool has_texture_swizzle;
+    Bool has_rg;
     Bool is_core_profile;
     Bool can_copyplane;
     Bool use_gpu_shader4;
@@ -313,6 +315,7 @@ typedef struct glamor_screen_private {
     Bool suppress_gl_out_of_memory_logging;
     Bool logged_any_fbo_allocation_failure;
     Bool logged_any_pbo_allocation_failure;
+    Bool dirty;
 
     /* xv */
     glamor_program xv_prog;
@@ -511,6 +514,30 @@ glamor_pixmap_hcnt(glamor_pixmap_private *priv)
     for (box_index = 0; box_index < glamor_pixmap_hcnt(priv) *         \
              glamor_pixmap_wcnt(priv); box_index++)                    \
 
+static inline int
+glamor_drawable_effective_depth(DrawablePtr drawable)
+{
+    WindowPtr window;
+
+    if (drawable->type != DRAWABLE_WINDOW ||
+        drawable->depth != 32)
+        return drawable->depth;
+
+    window = (WindowPtr)drawable;
+    window = window->parent;
+    while (window && window->parent) {
+        /* A depth 32 window with any depth 24 ancestors (other than the root
+         * window) effectively behaves like depth 24
+         */
+        if (window->drawable.depth == 24)
+            return 24;
+
+        window = window->parent;
+    }
+
+    return 32;
+}
+
 /* GC private structure. Currently holds only any computed dash pixmap */
 
 typedef struct {
@@ -615,7 +642,7 @@ void glamor_set_destination_pixmap_fbo(glamor_screen_private *glamor_priv, glamo
  * */
 void glamor_set_destination_pixmap_priv_nc(glamor_screen_private *glamor_priv, PixmapPtr pixmap, glamor_pixmap_private *pixmap_priv);
 
-Bool glamor_set_alu(ScreenPtr screen, unsigned char alu);
+Bool glamor_set_alu(DrawablePtr drawable, unsigned char alu);
 Bool glamor_set_planemask(int depth, unsigned long planemask);
 RegionPtr glamor_bitmap_to_region(PixmapPtr pixmap);
 
@@ -869,7 +896,7 @@ glamor_solid(PixmapPtr pixmap, int x, int y, int width, int height,
              unsigned long fg_pixel);
 
 void
-glamor_solid_boxes(PixmapPtr pixmap,
+glamor_solid_boxes(DrawablePtr drawable,
                    BoxPtr box, int nbox, unsigned long fg_pixel);
 
 

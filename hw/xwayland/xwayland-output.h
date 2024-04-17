@@ -69,13 +69,27 @@ struct xwl_emulated_mode {
     uint32_t server_output_id;
     int32_t width;
     int32_t height;
+    RRMode id;
     Bool from_vidmode;
 };
 
 Bool xwl_screen_init_output(struct xwl_screen *xwl_screen);
 
+Bool xwl_screen_init_randr_fixed(struct xwl_screen *xwl_screen);
+
+Bool
+xwl_randr_add_modes_fixed(struct xwl_output *xwl_output,
+                          int current_width, int current_height);
+
+void xwl_output_set_mode_fixed(struct xwl_output *xwl_output,
+                               RRModePtr mode);
+
+struct xwl_output *xwl_output_from_wl_output(struct xwl_screen *xwl_screen,
+                                             struct wl_output* wl_output);
+
 struct xwl_output *xwl_output_create(struct xwl_screen *xwl_screen,
-                                     uint32_t id);
+                                     uint32_t id, Bool with_xrandr,
+                                     uint32_t version);
 
 void xwl_output_destroy(struct xwl_output *xwl_output);
 
@@ -93,7 +107,5 @@ void xwl_output_set_window_randr_emu_props(struct xwl_screen *xwl_screen,
                                            WindowPtr window);
 
 void xwl_screen_init_xdg_output(struct xwl_screen *xwl_screen);
-
-int xwl_get_next_output_serial(void);
 
 #endif /* XWAYLAND_OUTPUT_H */

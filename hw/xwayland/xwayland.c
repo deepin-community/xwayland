@@ -91,6 +91,9 @@ void
 ddxUseMsg(void)
 {
     ErrorF("-rootless              run rootless, requires wm support\n");
+    ErrorF("-fullscreen            run fullscreen when rootful\n");
+    ErrorF("-geometry WxH          set Xwayland window size when rootful\n");
+    ErrorF("-host-grab             disable host keyboard shortcuts when rootful\n");
     ErrorF("-wm fd                 create X client for wm on given fd\n");
     ErrorF("-initfd fd             add given fd as a listen socket for initialization clients\n");
     ErrorF("-listenfd fd           add given fd as a listen socket\n");
@@ -102,6 +105,13 @@ ddxUseMsg(void)
     ErrorF("-verbose [n]           verbose startup messages\n");
     ErrorF("-version               show the server version and exit\n");
     ErrorF("-noTouchPointerEmulation  disable touch pointer emulation\n");
+    ErrorF("-force-xrandr-emulation   force non-native modes to be exposed when viewporter is not exposed by the compositor\n");
+#ifdef XWL_HAS_LIBDECOR
+    ErrorF("-decorate              add decorations to Xwayland when rootful\n");
+#endif
+#ifdef XWL_HAS_EI_PORTAL
+    ErrorF("-enable-ei-portal      use the XDG portal for input emulation\n");
+#endif
 }
 
 static int init_fd = -1;
@@ -223,6 +233,25 @@ ddxProcessArgument(int argc, char *argv[], int i)
         touchEmulatePointer = FALSE;
         return 1;
     }
+    else if (strcmp(argv[i], "-force-xrandr-emulation") == 0) {
+        return 1;
+    }
+    else if (strcmp(argv[i], "-geometry") == 0) {
+        CHECK_FOR_REQUIRED_ARGUMENTS(1);
+        return 2;
+    }
+    else if (strcmp(argv[i], "-fullscreen") == 0) {
+        return 1;
+    }
+    else if (strcmp(argv[i], "-host-grab") == 0) {
+        return 1;
+    }
+    else if (strcmp(argv[i], "-decorate") == 0) {
+        return 1;
+    }
+    else if (strcmp(argv[i], "-enable-ei-portal") == 0) {
+        return 1;
+    }
 
     return 0;
 }
@@ -266,19 +295,112 @@ wm_selection_callback(CallbackListPtr *p, void *data, void *arg)
     DeleteCallback(&SelectionCallback, wm_selection_callback, xwl_screen);
 }
 
-_X_NORETURN
 static void _X_ATTRIBUTE_PRINTF(1, 0)
 xwl_log_handler(const char *format, va_list args)
 {
     char msg[256];
 
     vsnprintf(msg, sizeof msg, format, args);
-    FatalError("%s", msg);
+    ErrorF("XWAYLAND: %s", msg);
 }
+
+#ifdef XWL_HAS_XWAYLAND_EXTENSION
+#include <X11/extensions/xwaylandproto.h>
+
+Bool noXwaylandExtension = FALSE;
+
+static int
+ProcXwlQueryVersion(ClientPtr client)
+{
+    xXwlQueryVersionReply reply;
+    int major, minor;
+
+    REQUEST(xXwlQueryVersionReq);
+    REQUEST_SIZE_MATCH(xXwlQueryVersionReq);
+
+    if (version_compare(stuff->majorVersion, stuff->minorVersion,
+                        XWAYLAND_EXTENSION_MAJOR,
+                        XWAYLAND_EXTENSION_MINOR) < 0) {
+        major = stuff->majorVersion;
+        minor = stuff->minorVersion;
+    } else {
+        major = XWAYLAND_EXTENSION_MAJOR;
+        minor = XWAYLAND_EXTENSION_MINOR;
+    }
+
+    reply = (xXwlQueryVersionReply) {
+        .type = X_Reply,
+        .sequenceNumber = client->sequence,
+        .length = 0,
+        .majorVersion = major,
+        .minorVersion = minor,
+    };
+
+    if (client->swapped) {
+        swaps(&reply.sequenceNumber);
+        swapl(&reply.length);
+        swaps(&reply.majorVersion);
+        swaps(&reply.minorVersion);
+    }
+
+    WriteReplyToClient(client, sizeof(reply), &reply);
+    return Success;
+}
+
+static int _X_COLD
+SProcXwlQueryVersion(ClientPtr client)
+{
+    REQUEST(xXwlQueryVersionReq);
+
+    swaps(&stuff->length);
+    REQUEST_AT_LEAST_SIZE(xXwlQueryVersionReq);
+    swaps(&stuff->majorVersion);
+    swaps(&stuff->minorVersion);
+
+    return ProcXwlQueryVersion(client);
+}
+
+static int
+ProcXwaylandDispatch(ClientPtr client)
+{
+    REQUEST(xReq);
+
+    switch (stuff->data) {
+    case X_XwlQueryVersion:
+        return ProcXwlQueryVersion(client);
+    }
+    return BadRequest;
+}
+
+static int
+SProcXwaylandDispatch(ClientPtr client)
+{
+    REQUEST(xReq);
+
+    switch (stuff->data) {
+    case X_XwlQueryVersion:
+        return SProcXwlQueryVersion(client);
+    }
+    return BadRequest;
+}
+
+static void
+xwlExtensionInit(void)
+{
+    AddExtension(XWAYLAND_EXTENSION_NAME,
+                 XwlNumberEvents, XwlNumberErrors,
+                 ProcXwaylandDispatch, SProcXwaylandDispatch,
+                 NULL, StandardMinorOpcode);
+}
+
+#endif
 
 static const ExtensionModule xwayland_extensions[] = {
 #ifdef XF86VIDMODE
     { xwlVidModeExtensionInit, XF86VIDMODENAME, &noXFree86VidModeExtension },
+#endif
+#ifdef XWL_HAS_XWAYLAND_EXTENSION
+    { xwlExtensionInit, XWAYLAND_EXTENSION_NAME, &noXwaylandExtension },
 #endif
 };
 

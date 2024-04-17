@@ -38,7 +38,7 @@ THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #include "extnsionst.h"
 #include "extinit.h"
 #include "xace.h"
-#include "xkb.h"
+#include "xkb-procs.h"
 #include "protocol-versions.h"
 
 #include <X11/extensions/XI.h>
@@ -2433,7 +2433,7 @@ _XkbSetMapCheckLength(xkbSetMapReq *req)
     }
     /* actions */
     if (req->present & XkbKeyActionsMask) {
-        _add_check_len(req->totalActs * sz_xkbActionWireDesc 
+        _add_check_len(req->totalActs * sz_xkbActionWireDesc
                        + XkbPaddedSize(req->nKeyActs));
     }
     /* behaviours */
@@ -2511,16 +2511,15 @@ _XkbSetMapChecks(ClientPtr client, DeviceIntPtr dev, xkbSetMapReq * req,
         }
     }
 
-    if (!(req->present & XkbKeyTypesMask)) {
-        nTypes = xkb->map->num_types;
-    }
-    else if (!CheckKeyTypes(client, xkb, req, (xkbKeyTypeWireDesc **) &values,
-			       &nTypes, mapWidths, doswap)) {
+    /* nTypes/mapWidths/symsPerKey must be filled for further tests below,
+     * regardless of client-side flags */
+
+    if (!CheckKeyTypes(client, xkb, req, (xkbKeyTypeWireDesc **) &values,
+		       &nTypes, mapWidths, doswap)) {
 	    client->errorValue = nTypes;
 	    return BadValue;
     }
 
-    /* symsPerKey/mapWidths must be filled regardless of client-side flags */
     map = &xkb->map->key_sym_map[xkb->min_key_code];
     for (i = xkb->min_key_code; i < xkb->max_key_code; i++, map++) {
         register int g, ng, w;
@@ -6844,7 +6843,7 @@ _XkbSetDeviceInfo(ClientPtr client, DeviceIntPtr dev,
     ed.deviceID = dev->id;
     wire = (char *) &stuff[1];
     if (stuff->change & XkbXI_ButtonActionsMask) {
-	int nBtns, sz, i;
+        int nBtns, sz, i;
         XkbAction *acts;
         DeviceIntPtr kbd;
 

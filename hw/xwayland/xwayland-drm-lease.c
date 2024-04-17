@@ -36,6 +36,18 @@
 #include "xwayland-output.h"
 
 static void
+xwl_randr_lease_cleanup_outputs(RRLeasePtr rrLease)
+{
+    struct xwl_output *output;
+    int i;
+
+    for (i = 0; i < rrLease->numOutputs; ++i) {
+        output = rrLease->outputs[i]->devPrivate;
+        output->lease = NULL;
+    }
+}
+
+static void
 drm_lease_handle_lease_fd(void *data,
                           struct wp_drm_lease_v1 *wp_drm_lease_v1,
                           int32_t lease_fd)
@@ -51,17 +63,12 @@ drm_lease_handle_finished(void *data,
                           struct wp_drm_lease_v1 *wp_drm_lease_v1)
 {
     struct xwl_drm_lease *lease = (struct xwl_drm_lease *)data;
-    struct xwl_output *output;
-    int i;
 
     if (lease->fd >= 0) {
         RRTerminateLease(lease->rrLease);
     } else {
         AttendClient(lease->client);
-        for (i = 0; i < lease->rrLease->numOutputs; ++i) {
-            output = lease->rrLease->outputs[i]->devPrivate;
-            output->lease = NULL;
-        }
+        xwl_randr_lease_cleanup_outputs(lease->rrLease);
     }
 }
 
@@ -164,6 +171,7 @@ xwl_randr_terminate_lease(ScreenPtr screen, RRLeasePtr lease)
     struct xwl_drm_lease *lease_private = lease->devPrivate;
 
     if (lease_private) {
+        xwl_randr_lease_cleanup_outputs(lease);
         xorg_list_del(&lease_private->link);
         if (lease_private->fd >= 0)
             close(lease_private->fd);
@@ -336,6 +344,7 @@ drm_lease_device_handle_connector(void *data,
                                   struct wp_drm_lease_connector_v1 *connector)
 {
     struct xwl_drm_lease_device *lease_device = data;
+    struct xwl_screen *xwl_screen = lease_device->xwl_screen;
     struct xwl_output *xwl_output;
     char name[256];
 
@@ -345,18 +354,19 @@ drm_lease_device_handle_connector(void *data,
         return;
     }
 
-    snprintf(name, sizeof name, "XWAYLAND%d", xwl_get_next_output_serial());
+    snprintf(name, sizeof name, "XWAYLAND%d",
+             xwl_screen_get_next_output_serial(xwl_screen));
 
     xwl_output->lease_device = lease_device;
-    xwl_output->xwl_screen = lease_device->xwl_screen;
+    xwl_output->xwl_screen = xwl_screen;
     xwl_output->lease_connector = connector;
-    xwl_output->randr_crtc = RRCrtcCreate(lease_device->xwl_screen->screen, xwl_output);
+    xwl_output->randr_crtc = RRCrtcCreate(xwl_screen->screen, xwl_output);
     if (!xwl_output->randr_crtc) {
         ErrorF("Failed creating RandR CRTC\n");
         goto err;
     }
     RRCrtcSetRotations(xwl_output->randr_crtc, ALL_ROTATIONS);
-    xwl_output->randr_output = RROutputCreate(lease_device->xwl_screen->screen,
+    xwl_output->randr_output = RROutputCreate(xwl_screen->screen,
                                               name, strlen(name), xwl_output);
     if (!xwl_output->randr_output) {
         ErrorF("Failed creating RandR Output\n");
@@ -373,7 +383,7 @@ drm_lease_device_handle_connector(void *data,
                                             &lease_connector_listener,
                                             xwl_output);
 
-    xorg_list_append(&xwl_output->link, &lease_device->xwl_screen->output_list);
+    xorg_list_append(&xwl_output->link, &xwl_screen->output_list);
     return;
 
 err:

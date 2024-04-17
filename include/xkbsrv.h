@@ -505,6 +505,8 @@ extern _X_EXPORT void XkbUpdateIndicators(DeviceIntPtr /* keybd */ ,
                                           XkbEventCausePtr      /* cause */
     );
 
+extern void XkbForceUpdateDeviceLEDs(DeviceIntPtr /* keybd */);
+
 extern _X_EXPORT void XkbUpdateAllDeviceIndicators(XkbChangesPtr /* changes */,
                                                    XkbEventCausePtr /* cause */
     );
@@ -777,9 +779,6 @@ extern _X_EXPORT void XkbDeleteRulesDflts(void
     );
 
 extern _X_EXPORT void XkbDeleteRulesUsed(void
-    );
-
-extern _X_EXPORT int SProcXkbDispatch(ClientPtr /* client */
     );
 
 extern _X_EXPORT XkbGeometryPtr XkbLookupNamedGeometry(DeviceIntPtr /* dev */ ,

@@ -194,8 +194,8 @@ dix_main(int argc, char *argv[], char *envp[])
 
         for (i = 0; i < screenInfo.numGPUScreens; i++) {
             ScreenPtr pScreen = screenInfo.gpuscreens[i];
-            if (!CreateScratchPixmapsForScreen(pScreen))
-                FatalError("failed to create scratch pixmaps");
+            if (!PixmapScreenInit(pScreen))
+                FatalError("failed to create screen pixmap properties");
             if (pScreen->CreateScreenResources &&
                 !(*pScreen->CreateScreenResources) (pScreen))
                 FatalError("failed to create screen resources");
@@ -204,8 +204,8 @@ dix_main(int argc, char *argv[], char *envp[])
         for (i = 0; i < screenInfo.numScreens; i++) {
             ScreenPtr pScreen = screenInfo.screens[i];
 
-            if (!CreateScratchPixmapsForScreen(pScreen))
-                FatalError("failed to create scratch pixmaps");
+            if (!PixmapScreenInit(pScreen))
+                FatalError("failed to create screen pixmap properties");
             if (pScreen->CreateScreenResources &&
                 !(*pScreen->CreateScreenResources) (pScreen))
                 FatalError("failed to create screen resources");
@@ -304,7 +304,6 @@ dix_main(int argc, char *argv[], char *envp[])
 
         for (i = screenInfo.numGPUScreens - 1; i >= 0; i--) {
             ScreenPtr pScreen = screenInfo.gpuscreens[i];
-            FreeScratchPixmapsForScreen(pScreen);
             dixFreeScreenSpecificPrivates(pScreen);
             (*pScreen->CloseScreen) (pScreen);
             dixFreePrivates(pScreen->devPrivates, PRIVATE_SCREEN);
@@ -313,7 +312,6 @@ dix_main(int argc, char *argv[], char *envp[])
         }
 
         for (i = screenInfo.numScreens - 1; i >= 0; i--) {
-            FreeScratchPixmapsForScreen(screenInfo.screens[i]);
             FreeGCperDepth(i);
             FreeDefaultStipple(i);
             dixFreeScreenSpecificPrivates(screenInfo.screens[i]);

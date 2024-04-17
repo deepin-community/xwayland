@@ -25,9 +25,9 @@
 #include "glamor_program.h"
 
 static Bool
-use_solid(PixmapPtr pixmap, GCPtr gc, glamor_program *prog, void *arg)
+use_solid(DrawablePtr drawable, GCPtr gc, glamor_program *prog, void *arg)
 {
-    return glamor_set_solid(pixmap, gc, TRUE, prog->fg_uniform);
+    return glamor_set_solid(drawable, gc, TRUE, prog->fg_uniform);
 }
 
 const glamor_facet glamor_fill_solid = {
@@ -38,9 +38,9 @@ const glamor_facet glamor_fill_solid = {
 };
 
 static Bool
-use_tile(PixmapPtr pixmap, GCPtr gc, glamor_program *prog, void *arg)
+use_tile(DrawablePtr drawable, GCPtr gc, glamor_program *prog, void *arg)
 {
-    return glamor_set_tiled(pixmap, gc, prog->fill_offset_uniform, prog->fill_size_inv_uniform);
+    return glamor_set_tiled(drawable, gc, prog->fill_offset_uniform, prog->fill_size_inv_uniform);
 }
 
 static const glamor_facet glamor_fill_tile = {
@@ -52,9 +52,9 @@ static const glamor_facet glamor_fill_tile = {
 };
 
 static Bool
-use_stipple(PixmapPtr pixmap, GCPtr gc, glamor_program *prog, void *arg)
+use_stipple(DrawablePtr drawable, GCPtr gc, glamor_program *prog, void *arg)
 {
-    return glamor_set_stippled(pixmap, gc, prog->fg_uniform,
+    return glamor_set_stippled(drawable, gc, prog->fg_uniform,
                                prog->fill_offset_uniform,
                                prog->fill_size_inv_uniform);
 }
@@ -71,11 +71,11 @@ static const glamor_facet glamor_fill_stipple = {
 };
 
 static Bool
-use_opaque_stipple(PixmapPtr pixmap, GCPtr gc, glamor_program *prog, void *arg)
+use_opaque_stipple(DrawablePtr drawable, GCPtr gc, glamor_program *prog, void *arg)
 {
-    if (!use_stipple(pixmap, gc, prog, arg))
+    if (!use_stipple(drawable, gc, prog, arg))
         return FALSE;
-    glamor_set_color(pixmap, gc->bgPixel, prog->bg_uniform);
+    glamor_set_color(drawable, gc->bgPixel, prog->bg_uniform);
     return TRUE;
 }
 
@@ -201,6 +201,8 @@ static const char vs_template[] =
 static const char fs_template[] =
     "%s"                                /* version */
     "%s"                                /* exts */
+    "%s"                                /* prim fs_extensions */
+    "%s"                                /* fill fs_extensions */
     GLAMOR_DEFAULT_PRECISION
     "%s"                                /* defines */
     "%s"                                /* prim fs_vars */
@@ -281,6 +283,11 @@ glamor_build_program(ScreenPtr          screen,
             gpu_shader4 = TRUE;
         }
     }
+    /* For now, fix shader version to GLES as 100. We will fall with 130 shaders
+     * in previous check due to forcibly set 120 glsl for GLES. But this patch
+     * makes xv shaders to work */
+    if(version && glamor_priv->is_gles)
+        version = 100;
 
     vs_vars = vs_location_vars(locations);
     fs_vars = fs_location_vars(locations);
@@ -312,6 +319,8 @@ glamor_build_program(ScreenPtr          screen,
     if (asprintf(&fs_prog_string,
                  fs_template,
                  str(version_string),
+                 str(prim->fs_extensions),
+                 str(fill->fs_extensions),
                  gpu_shader4 ? "#extension GL_EXT_gpu_shader4 : require\n#define texelFetch texelFetch2D\n#define uint unsigned int\n" : "",
                  str(defines),
                  str(prim->fs_vars),
@@ -392,29 +401,29 @@ fail:
 }
 
 Bool
-glamor_use_program(PixmapPtr            pixmap,
+glamor_use_program(DrawablePtr          drawable,
                    GCPtr                gc,
                    glamor_program       *prog,
                    void                 *arg)
 {
     glUseProgram(prog->prog);
 
-    if (prog->prim_use && !prog->prim_use(pixmap, gc, prog, arg))
+    if (prog->prim_use && !prog->prim_use(drawable, gc, prog, arg))
         return FALSE;
 
-    if (prog->fill_use && !prog->fill_use(pixmap, gc, prog, arg))
+    if (prog->fill_use && !prog->fill_use(drawable, gc, prog, arg))
         return FALSE;
 
     return TRUE;
 }
 
 glamor_program *
-glamor_use_program_fill(PixmapPtr               pixmap,
+glamor_use_program_fill(DrawablePtr             drawable,
                         GCPtr                   gc,
                         glamor_program_fill     *program_fill,
                         const glamor_facet      *prim)
 {
-    ScreenPtr                   screen = pixmap->drawable.pScreen;
+    ScreenPtr                   screen = drawable->pScreen;
     glamor_program              *prog = &program_fill->progs[gc->fillStyle];
 
     int                         fill_style = gc->fillStyle;
@@ -432,7 +441,7 @@ glamor_use_program_fill(PixmapPtr               pixmap,
             return NULL;
     }
 
-    if (!glamor_use_program(pixmap, gc, prog, NULL))
+    if (!glamor_use_program(drawable, gc, prog, NULL))
         return NULL;
 
     return prog;
@@ -494,7 +503,8 @@ glamor_set_blend(CARD8 op, glamor_program_alpha alpha, PicturePtr dst)
     }
 
     /* Set up the source alpha value for blending in component alpha mode. */
-    if (alpha == glamor_program_alpha_dual_blend) {
+    if (alpha == glamor_program_alpha_dual_blend ||
+        alpha == glamor_program_alpha_dual_blend_gles2) {
         switch (dst_blend) {
         case GL_SRC_ALPHA:
             dst_blend = GL_SRC1_COLOR;
@@ -581,11 +591,13 @@ static const glamor_facet *glamor_facet_source[glamor_program_source_count] = {
 };
 
 static const char *glamor_combine[] = {
-    [glamor_program_alpha_normal]    = "       gl_FragColor = source * mask.a;\n",
-    [glamor_program_alpha_ca_first]  = "       gl_FragColor = source.a * mask;\n",
-    [glamor_program_alpha_ca_second] = "       gl_FragColor = source * mask;\n",
-    [glamor_program_alpha_dual_blend] = "      color0 = source * mask;\n"
-                                        "      color1 = source.a * mask;\n"
+    [glamor_program_alpha_normal]    = "        gl_FragColor = source * mask.a;\n",
+    [glamor_program_alpha_ca_first]  = "        gl_FragColor = source.a * mask;\n",
+    [glamor_program_alpha_ca_second] = "        gl_FragColor = source * mask;\n",
+    [glamor_program_alpha_dual_blend] = "       color0 = source * mask;\n"
+                                        "       color1 = source.a * mask;\n",
+    [glamor_program_alpha_dual_blend_gles2] = " gl_FragColor = source * mask;\n"
+                                              " gl_SecondaryFragColorEXT = source.a * mask;\n"
 };
 
 static Bool
@@ -633,7 +645,9 @@ glamor_setup_program_render(CARD8                 op,
 
     if (glamor_is_component_alpha(mask)) {
         if (glamor_priv->has_dual_blend) {
-            alpha = glamor_program_alpha_dual_blend;
+            alpha = glamor_glsl_has_ints(glamor_priv) ?
+                    glamor_program_alpha_dual_blend :
+                    glamor_program_alpha_dual_blend_gles2;
         } else {
             /* This only works for PictOpOver */
             if (op != PictOpOver)

@@ -291,10 +291,10 @@ glamor_xv_query_image_attributes(int id,
             pitches[0] = size;
         size *= *h;
         if (offsets)
-            offsets[1] = offsets[2] = size;
+            offsets[1] = size;
         tmp = ALIGN(*w, 4);
         if (pitches)
-            pitches[1] = pitches[2] = tmp;
+            pitches[1] = tmp;
         tmp *= (*h >> 1);
         size += tmp;
         break;
@@ -356,7 +356,7 @@ glamor_xv_render(glamor_port_private *port_priv, int id)
     off[2] = Loff * yco + Coff * (uco[2] + vco[2]) + bright;
     gamma = 1.0;
 
-    glamor_set_alu(screen, GXcopy);
+    glamor_set_alu(&pixmap->drawable, GXcopy);
 
     for (i = 0; i < 3; i++) {
         if (port_priv->src_pix[i]) {
@@ -584,15 +584,15 @@ glamor_xv_put_image(glamor_port_private *port_priv,
         half_box.x2 = width >> 1;
         half_box.y2 = (nlines + 1) >> 1;
 
-        glamor_upload_boxes(port_priv->src_pix[0], &full_box, 1,
+        glamor_upload_boxes(&port_priv->src_pix[0]->drawable, &full_box, 1,
                             0, 0, 0, 0,
                             buf + (top * srcPitch), srcPitch);
 
-        glamor_upload_boxes(port_priv->src_pix[1], &half_box, 1,
+        glamor_upload_boxes(&port_priv->src_pix[1]->drawable, &half_box, 1,
                             0, 0, 0, 0,
                             buf + s2offset, srcPitch2);
 
-        glamor_upload_boxes(port_priv->src_pix[2], &half_box, 1,
+        glamor_upload_boxes(&port_priv->src_pix[2]->drawable, &half_box, 1,
                             0, 0, 0, 0,
                             buf + s3offset, srcPitch2);
         break;
@@ -611,11 +611,11 @@ glamor_xv_put_image(glamor_port_private *port_priv,
         half_box.x2 = width;
         half_box.y2 = (nlines + 1) >> 1;
 
-        glamor_upload_boxes(port_priv->src_pix[0], &full_box, 1,
+        glamor_upload_boxes(&port_priv->src_pix[0]->drawable, &full_box, 1,
                             0, 0, 0, 0,
                             buf + (top * srcPitch), srcPitch);
 
-        glamor_upload_boxes(port_priv->src_pix[1], &half_box, 1,
+        glamor_upload_boxes(&port_priv->src_pix[1]->drawable, &half_box, 1,
                             0, 0, 0, 0,
                             buf + s2offset, srcPitch);
         break;

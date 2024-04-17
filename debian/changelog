@@ -1,8 +1,72 @@
-xwayland (2:22.1.8-1deepin) unstable; urgency=medium
+xwayland (2:23.2.6-1) unstable; urgency=medium
 
-  * Regulate version name
+  * New upstream release.
+    - CVE-2024-31080
+    - CVE-2024-31081
+    - CVE-2024-31083
+  * control: Add libtirpc-dev to build-depends. (Closes: #1065184)
 
- -- Yutao Meng <mengyutao@uniontech.com>  Thu, 16 Mar 2023 15:27:18 +0800
+ -- Timo Aaltonen <tjaalton@debian.org>  Sat, 13 Apr 2024 16:58:45 +0300
+
+xwayland (2:23.2.4-1) unstable; urgency=medium
+
+  * New upstream release
+    - CVE-2023-6816
+    - CVE-2024-0229
+    - CVE-2024-21885
+    - CVE-2024-21886
+    - CVE-2024-0408
+    - CVE-2024-0409
+
+ -- Julien Cristau <jcristau@debian.org>  Wed, 17 Jan 2024 11:20:05 +0100
+
+xwayland (2:23.2.3-1) unstable; urgency=medium
+
+  * New upstream release.
+    - CVE-2023-6377
+    - CVE-2023-6478
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Wed, 13 Dec 2023 10:35:39 +0200
+
+xwayland (2:23.2.2-1) unstable; urgency=medium
+
+  * New upstream release.
+    - CVE-2023-5367
+    - CVE-2023-5380
+    - CVE-2023-5574
+  * control: Add libdecor-0-dev to build-depends. (Closes: #1054529)
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Wed, 25 Oct 2023 10:51:36 +0300
+
+xwayland (2:23.2.1-1) unstable; urgency=medium
+
+  * New upstream release.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Wed, 20 Sep 2023 16:09:23 +0300
+
+xwayland (2:23.2.0-1) unstable; urgency=medium
+
+  * New upstream release.
+  * patches: Refreshed.
+  * control: Bump x11proto-dev depends.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Wed, 16 Aug 2023 15:27:59 +0300
+
+xwayland (2:23.1.1-1) experimental; urgency=medium
+
+  * New upstream release.
+  * control: Fix cross-building, add libwayland-dev:native to build-
+    depends. (Closes: #1002515)
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Thu, 11 May 2023 13:10:04 +0300
+
+xwayland (2:23.1.0-1) experimental; urgency=medium
+
+  * New upstream release.
+  * patches: Refreshed.
+  * install: Add desktop file.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Fri, 24 Mar 2023 11:26:25 +0200
 
 xwayland (2:22.1.8-1) unstable; urgency=medium
 

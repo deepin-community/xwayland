@@ -223,7 +223,7 @@ glamor_create_pixmap(ScreenPtr screen, int w, int h, int depth,
 
     pixmap_priv = glamor_get_pixmap_private(pixmap);
 
-    pixmap_priv->is_cbcr = (usage == GLAMOR_CREATE_FORMAT_CBCR);
+    pixmap_priv->is_cbcr = (GLAMOR_CREATE_FORMAT_CBCR & usage) == GLAMOR_CREATE_FORMAT_CBCR;
 
     pitch = (((w * pixmap->drawable.bitsPerPixel + 7) / 8) + 3) & ~3;
     screen->ModifyPixmapHeader(pixmap, w, h, 0, 0, pitch, NULL);
@@ -271,9 +271,7 @@ void
 glamor_block_handler(ScreenPtr screen)
 {
     glamor_screen_private *glamor_priv = glamor_get_screen_private(screen);
-
-    glamor_make_current(glamor_priv);
-    glFlush();
+    glamor_flush(glamor_priv);
 }
 
 static void
@@ -281,8 +279,7 @@ _glamor_block_handler(ScreenPtr screen, void *timeout)
 {
     glamor_screen_private *glamor_priv = glamor_get_screen_private(screen);
 
-    glamor_make_current(glamor_priv);
-    glFlush();
+    glamor_flush(glamor_priv);
 
     screen->BlockHandler = glamor_priv->saved_procs.block_handler;
     screen->BlockHandler(screen, timeout);
@@ -309,6 +306,10 @@ glamor_gldrawarrays_quads_using_indices(glamor_screen_private *glamor_priv,
                                         unsigned count)
 {
     unsigned i;
+
+    /* If there is no quads to draw, just exit */
+    if (count == 0)
+        return;
 
     /* For a single quad, don't bother with an index buffer. */
     if (count ==  1)
@@ -550,9 +551,10 @@ glamor_setup_formats(ScreenPtr screen)
     glamor_screen_private *glamor_priv = glamor_get_screen_private(screen);
 
     /* Prefer r8 textures since they're required by GLES3 and core,
-     * only falling back to a8 if we can't do them.
+     * only falling back to a8 if we can't do them. We cannot do them
+     * on GLES2 due to lack of texture swizzle.
      */
-    if (glamor_priv->is_gles || epoxy_has_gl_extension("GL_ARB_texture_rg")) {
+    if (glamor_priv->has_rg && glamor_priv->has_texture_swizzle) {
         glamor_add_format(screen, 1, PICT_a1,
                           GL_R8, GL_RED, GL_UNSIGNED_BYTE, FALSE);
         glamor_add_format(screen, 8, PICT_a8,
@@ -586,10 +588,10 @@ glamor_setup_formats(ScreenPtr screen)
 
     if (glamor_priv->is_gles) {
         assert(X_BYTE_ORDER == X_LITTLE_ENDIAN);
-        glamor_add_format(screen, 24, PICT_x8b8g8r8,
-                          GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE, TRUE);
-        glamor_add_format(screen, 32, PICT_a8b8g8r8,
-                          GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE, TRUE);
+        glamor_add_format(screen, 24, PICT_x8r8g8b8,
+                          GL_BGRA, GL_BGRA, GL_UNSIGNED_BYTE, TRUE);
+        glamor_add_format(screen, 32, PICT_a8r8g8b8,
+                          GL_BGRA, GL_BGRA, GL_UNSIGNED_BYTE, TRUE);
     } else {
         glamor_add_format(screen, 24, PICT_x8r8g8b8,
                           GL_RGBA, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, TRUE);
@@ -606,8 +608,13 @@ glamor_setup_formats(ScreenPtr screen)
     }
 
     glamor_priv->cbcr_format.depth = 16;
-    glamor_priv->cbcr_format.internalformat = GL_RG8;
+    if (glamor_priv->is_gles && glamor_priv->has_rg) {
+        glamor_priv->cbcr_format.internalformat = GL_RG;
+    } else {
+        glamor_priv->cbcr_format.internalformat = GL_RG8;
+    }
     glamor_priv->cbcr_format.format = GL_RG;
+    glamor_priv->cbcr_format.render_format = PICT_yuv2;
     glamor_priv->cbcr_format.type = GL_UNSIGNED_BYTE;
     glamor_priv->cbcr_format.rendering_supported = TRUE;
 }
@@ -782,11 +789,18 @@ glamor_init(ScreenPtr screen, unsigned int flags)
         epoxy_gl_version() >= 30 ||
         epoxy_has_gl_extension("GL_NV_pack_subimage");
     glamor_priv->has_dual_blend =
-        glamor_glsl_has_ints(glamor_priv) &&
-        epoxy_has_gl_extension("GL_ARB_blend_func_extended");
+        (epoxy_has_gl_extension("GL_ARB_blend_func_extended") &&
+        (glamor_glsl_has_ints(glamor_priv) ||
+        epoxy_has_gl_extension("GL_ARB_ES2_compatibility"))) ||
+        epoxy_has_gl_extension("GL_EXT_blend_func_extended");
     glamor_priv->has_clear_texture =
         epoxy_gl_version() >= 44 ||
         epoxy_has_gl_extension("GL_ARB_clear_texture");
+    /* GL_EXT_texture_rg is part of GLES3 core */
+    glamor_priv->has_rg =
+        (glamor_priv->is_gles && epoxy_gl_version() >= 30) ||
+        epoxy_has_gl_extension("GL_EXT_texture_rg") ||
+        epoxy_has_gl_extension("GL_ARB_texture_rg");
 
     glamor_priv->can_copyplane = (gl_version >= 30);
 
@@ -993,6 +1007,7 @@ _glamor_fds_from_pixmap(ScreenPtr screen, PixmapPtr pixmap, int *fds,
                         uint32_t *strides, uint32_t *offsets,
                         CARD32 *size, uint64_t *modifier)
 {
+#ifdef GLAMOR_HAS_GBM
     glamor_pixmap_private *pixmap_priv = glamor_get_pixmap_private(pixmap);
     glamor_screen_private *glamor_priv =
         glamor_get_screen_private(pixmap->drawable.pScreen);
@@ -1020,6 +1035,7 @@ _glamor_fds_from_pixmap(ScreenPtr screen, PixmapPtr pixmap, int *fds,
     default:
         break;
     }
+#endif /* GLAMOR_HAS_GBM */
     return 0;
 }
 
