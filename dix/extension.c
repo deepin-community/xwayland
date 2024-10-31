@@ -50,6 +50,9 @@ SOFTWARE.
 
 #include <X11/X.h>
 #include <X11/Xproto.h>
+
+#include "dix/registry_priv.h"
+
 #include "misc.h"
 #include "dixstruct.h"
 #include "extnsionst.h"
@@ -57,7 +60,6 @@ SOFTWARE.
 #include "scrnintstr.h"
 #include "dispatch.h"
 #include "privates.h"
-#include "registry.h"
 #include "xace.h"
 
 #define LAST_ERROR 255
@@ -87,7 +89,7 @@ AddExtension(const char *name, int NumEvents, int NumErrors,
         return ((ExtensionEntry *) NULL);
     }
 
-    ext = calloc(sizeof(ExtensionEntry), 1);
+    ext = calloc(1, sizeof(ExtensionEntry));
     if (!ext)
         return NULL;
     if (!dixAllocatePrivates(&ext->devPrivates, PRIVATE_EXTENSION)) {

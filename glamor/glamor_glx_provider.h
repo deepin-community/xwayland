@@ -1,5 +1,5 @@
 /*
- * Copyright © 2013 Intel Corporation
+ * Copyright © 2019 Red Hat, Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -17,44 +17,21 @@
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- */
-
-/** @file glamor_egl_stubs.c
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS IN THE SOFTWARE.
  *
- * Stubbed out glamor_egl.c functions for servers other than Xorg.
+ * Authors:
+ *	Adam Jackson <ajax@redhat.com>
  */
 
-#include "dix-config.h"
+#ifndef XWAYLAND_GLX_H
+#define XWAYLAND_GLX_H
 
-#include "glamor.h"
+#include <dix-config.h>
 
-void
-glamor_egl_screen_init(ScreenPtr screen, struct glamor_context *glamor_ctx)
-{
-}
+#ifdef GLXEXT
+#include "glx_extinit.h"
+extern _X_EXPORT __GLXprovider glamor_provider;
+#endif
 
-int
-glamor_egl_fd_name_from_pixmap(ScreenPtr screen,
-                               PixmapPtr pixmap,
-                               CARD16 *stride, CARD32 *size)
-{
-    return -1;
-}
-
-
-int
-glamor_egl_fds_from_pixmap(ScreenPtr screen, PixmapPtr pixmap, int *fds,
-                           uint32_t *offsets, uint32_t *strides,
-                           uint64_t *modifier)
-{
-    return 0;
-}
-
-int
-glamor_egl_fd_from_pixmap(ScreenPtr screen, PixmapPtr pixmap,
-                          CARD16 *stride, CARD32 *size)
-{
-    return -1;
-}
+#endif /* XWAYLAND_GLX_H */

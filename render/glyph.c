@@ -26,7 +26,7 @@
 #include <dix-config.h>
 #endif
 
-#include "xsha1.h"
+#include "os/xsha1.h"
 
 #include "misc.h"
 #include "scrnintstr.h"
@@ -42,7 +42,7 @@
 #include "gcstruct.h"
 #include "servermd.h"
 #include "picturestr.h"
-#include "glyphstr.h"
+#include "glyphstr_priv.h"
 #include "mipict.h"
 
 /*

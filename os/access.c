@@ -191,6 +191,8 @@ SOFTWARE.
 #include "osdep.h"
 
 #include "xace.h"
+#include "rpcauth.h"
+#include "xdmcp.h"
 
 Bool defeatAccessControl = FALSE;
 
@@ -440,20 +442,11 @@ DefineSelf(int fd)
 #if !defined(TCPCONN) && !defined(UNIXCONN)
     return;
 #else
-    register int n;
     int len;
     caddr_t addr;
     int family;
     register HOST *host;
-
-#ifndef WIN32
     struct utsname name;
-#else
-    struct {
-        char nodename[512];
-    } name;
-#endif
-
     register struct hostent *hp;
 
     union {
@@ -465,7 +458,9 @@ DefineSelf(int fd)
     } saddr;
 
     struct sockaddr_in *inetaddr;
+#if defined(IPv6) && defined(AF_INET6)
     struct sockaddr_in6 *inet6addr;
+#endif
     struct sockaddr_in broad_addr;
 
 #ifdef XTHREADS_NEEDS_BYNAMEPARAMS
@@ -477,11 +472,7 @@ DefineSelf(int fd)
      * uname() lets me access to the whole string (it smashes release, you
      * see), whereas gethostname() kindly truncates it for me.
      */
-#ifndef WIN32
     uname(&name);
-#else
-    gethostname(name.nodename, sizeof(name.nodename));
-#endif
 
     hp = _XGethostbyname(name.nodename, hparams);
     if (hp != NULL) {
@@ -1179,7 +1170,11 @@ GetLocalClientCreds(ClientPtr client, LocalClientCredRec ** lccp)
     ucred_t *peercred = NULL;
     const gid_t *gids;
 #elif defined(SO_PEERCRED)
+#ifndef __OpenBSD__
     struct ucred peercred;
+#else
+    struct sockpeercred peercred;
+#endif
     socklen_t so_len = sizeof(peercred);
 #elif defined(LOCAL_PEERCRED) && defined(HAVE_XUCRED_CR_PID)
     struct xucred peercred;
@@ -1443,13 +1438,15 @@ RemoveHost(ClientPtr client, int family, unsigned length,       /* of bytes in p
     case FamilyChaos:
     case FamilyServerInterpreted:
         if ((len = CheckAddr(family, pAddr, length)) < 0) {
-            client->errorValue = length;
+            if (client)
+                client->errorValue = length;
             return BadValue;
         }
         break;
     case FamilyLocal:
     default:
-        client->errorValue = family;
+        if (client)
+            client->errorValue = family;
         return BadValue;
     }
     for (prev = &validhosts;
@@ -1637,13 +1634,6 @@ ChangeAccessControl(ClientPtr client, int fEnabled)
         return rc;
     AccessEnabled = fEnabled;
     return Success;
-}
-
-/* returns FALSE if xhost + in effect, else TRUE */
-int
-GetAccessControl(void)
-{
-    return AccessEnabled;
 }
 
 int
@@ -1878,7 +1868,7 @@ siHostnameAddrMatch(int family, void *addr, int len,
         char hostname[SI_HOSTNAME_MAXLEN];
         int f, hostaddrlen;
         void *hostaddr;
-        const char **addrlist;
+        char **addrlist;
 
         if (siAddrLen >= sizeof(hostname))
             return FALSE;

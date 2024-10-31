@@ -25,8 +25,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <string.h>
 #include <X11/X.h>
 #include <X11/Xproto.h>
+
+#include "dix/registry_priv.h"
+
 #include "resource.h"
-#include "registry.h"
 
 #define BASE_SIZE 16
 

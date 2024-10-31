@@ -145,33 +145,20 @@ typedef struct _WorkQueue *WorkQueuePtr;
 extern _X_EXPORT ClientPtr clients[MAXCLIENTS];
 extern _X_EXPORT ClientPtr serverClient;
 extern _X_EXPORT int currentMaxClients;
-extern _X_EXPORT char dispatchExceptionAtReset;
-extern _X_EXPORT int terminateDelay;
-extern _X_EXPORT Bool touchEmulatePointer;
-
-typedef int HWEventQueueType;
-typedef HWEventQueueType *HWEventQueuePtr;
-
-extern _X_EXPORT HWEventQueuePtr checkForInput[2];
-
-static inline _X_NOTSAN Bool
-InputCheckPending(void)
-{
-    return (*checkForInput[0] != *checkForInput[1]);
-}
 
 typedef struct _TimeStamp {
     CARD32 months;              /* really ~49.7 days */
     CARD32 milliseconds;
 } TimeStamp;
 
+typedef int HWEventQueueType;
+typedef HWEventQueueType *HWEventQueuePtr;
+
 /* dispatch.c */
 extern _X_EXPORT ClientPtr GetCurrentClient(void);
 
 extern _X_EXPORT void SetInputCheck(HWEventQueuePtr /*c0 */ ,
                                     HWEventQueuePtr /*c1 */ );
-
-extern _X_EXPORT void CloseDownClient(ClientPtr /*client */ );
 
 extern _X_EXPORT void UpdateCurrentTime(void);
 
@@ -258,12 +245,6 @@ extern _X_EXPORT void RemoveBlockAndWakeupHandlers(ServerBlockHandlerProcPtr blo
                                                    void *blockData);
 
 extern _X_EXPORT void InitBlockAndWakeupHandlers(void);
-
-extern _X_EXPORT void ClearWorkQueue(void);
-
-extern _X_EXPORT void ProcessWorkQueue(void);
-
-extern _X_EXPORT void ProcessWorkQueueZombies(void);
 
 extern _X_EXPORT Bool QueueWorkProc(Bool (*function)(ClientPtr clientUnused,
                                                      void *closure),
@@ -569,11 +550,6 @@ extern Bool
 IsInterferingGrab(ClientPtr /* client */ ,
                   DeviceIntPtr /* dev */ ,
                   xEvent * /* events */ );
-
-#ifdef PANORAMIX
-extern _X_EXPORT void
-ReinitializeRootWindow(WindowPtr win, int xoff, int yoff);
-#endif
 
 #ifdef RANDR
 extern _X_EXPORT void

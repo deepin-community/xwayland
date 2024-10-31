@@ -6,10 +6,10 @@ Uploaders: Timo Aaltonen <tjaalton@debian.org>
 Build-Depends:
  debhelper-compat (= 13),
  meson,
- pkg-config,
+ pkgconf,
  quilt,
  libdecor-0-dev,
- libdrm-dev (>= 2.4.89),
+ libdrm-dev (>= 2.4.116),
  libepoxy-dev,
  libgcrypt-dev,
  libgbm-dev,

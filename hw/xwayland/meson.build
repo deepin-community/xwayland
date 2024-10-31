@@ -7,9 +7,9 @@ srcs = [
     'xwayland-drm-lease.h',
     'xwayland-drm-lease.c',
     'xwayland-glamor.h',
-    'xwayland-glx.h',
     'xwayland-pixmap.c',
     'xwayland-pixmap.h',
+    'xwayland-present.c',
     'xwayland-present.h',
     'xwayland-screen.c',
     'xwayland-screen.h',
@@ -31,10 +31,10 @@ srcs = [
 ]
 
 scanner_dep = dependency('wayland-scanner', native: true)
-scanner = find_program(scanner_dep.get_pkgconfig_variable('wayland_scanner'))
+scanner = find_program(scanner_dep.get_variable(pkgconfig : 'wayland_scanner'))
 
 protocols_dep = dependency('wayland-protocols', version: wayland_protocols_req)
-protodir = protocols_dep.get_pkgconfig_variable('pkgdatadir')
+protodir = protocols_dep.get_variable(pkgconfig : 'pkgdatadir')
 
 pointer_xml = join_paths(protodir, 'unstable', 'pointer-constraints', 'pointer-constraints-unstable-v1.xml')
 relative_xml = join_paths(protodir, 'unstable', 'relative-pointer', 'relative-pointer-unstable-v1.xml')
@@ -49,6 +49,8 @@ drm_lease_xml = join_paths(protodir, 'staging', 'drm-lease', 'drm-lease-v1.xml')
 shortcuts_inhibit_xml = join_paths(protodir, 'unstable', 'keyboard-shortcuts-inhibit', 'keyboard-shortcuts-inhibit-unstable-v1.xml')
 xwayland_shell_xml = join_paths(protodir, 'staging', 'xwayland-shell', 'xwayland-shell-v1.xml')
 tearing_xml = join_paths(protodir, 'staging', 'tearing-control', 'tearing-control-v1.xml')
+fractional_scale_xml = join_paths(protodir, 'staging', 'fractional-scale', 'fractional-scale-v1.xml')
+syncobj_xml = join_paths(protodir, 'staging', 'linux-drm-syncobj', 'linux-drm-syncobj-v1.xml')
 
 client_header = generator(scanner,
     output : '@BASENAME@-client-protocol.h',
@@ -78,6 +80,8 @@ srcs += client_header.process(drm_lease_xml)
 srcs += client_header.process(shortcuts_inhibit_xml)
 srcs += client_header.process(xwayland_shell_xml)
 srcs += client_header.process(tearing_xml)
+srcs += client_header.process(fractional_scale_xml)
+srcs += client_header.process(syncobj_xml)
 srcs += code.process(relative_xml)
 srcs += code.process(pointer_xml)
 srcs += code.process(gestures_xml)
@@ -91,6 +95,8 @@ srcs += code.process(drm_lease_xml)
 srcs += code.process(shortcuts_inhibit_xml)
 srcs += code.process(xwayland_shell_xml)
 srcs += code.process(tearing_xml)
+srcs += code.process(fractional_scale_xml)
+srcs += code.process(syncobj_xml)
 
 if build_ei
     xwayland_dep += libei_dep
@@ -102,30 +108,15 @@ if build_ei
 endif
 
 xwayland_glamor = []
-eglstream_srcs = []
-if build_glamor
-    srcs += 'xwayland-glamor.c'
-    if build_glx
-        srcs += 'xwayland-glx.c'
-    endif
-    if gbm_dep.found()
-        srcs += [
-                  'xwayland-glamor-gbm.c',
-                  'xwayland-present.c'
-                ]
-    endif
-    if build_eglstream
-        eglstream_protodir = eglstream_dep.get_pkgconfig_variable('pkgdatadir')
-        eglstream_xml = join_paths(eglstream_protodir, 'wayland-eglstream.xml')
-        eglstream_controller_xml = join_paths(eglstream_protodir, 'wayland-eglstream-controller.xml')
+if build_xwayland_glamor
+    srcs += [
+              'xwayland-glamor.c',
+              'xwayland-dmabuf.h',
+              'xwayland-dmabuf.c',
+              'xwayland-glamor-gbm.c',
+              'xwayland-glamor-gbm.h'
+            ]
 
-        srcs += client_header.process(eglstream_xml)
-        srcs += client_header.process(eglstream_controller_xml)
-        srcs += code.process(eglstream_xml)
-        srcs += code.process(eglstream_controller_xml)
-
-        srcs += 'xwayland-glamor-eglstream.c'
-    endif
     if build_xv
         srcs += 'xwayland-glamor-xv.c'
     endif
@@ -155,6 +146,7 @@ xwayland_server = executable(
     include_directories: wayland_inc,
     dependencies: [
         common_dep,
+        epoll_dep,
         xwayland_dep,
         xwaylandproto_dep,
     ],
@@ -175,7 +167,8 @@ xwayland_server = executable(
 
 xwayland_vars = [
     'have_glamor=' + build_glamor.to_string(),
-    'have_eglstream=' + build_eglstream.to_string(),
+    'have_glamor_api=' + build_glamor.to_string(),
+    'have_eglstream=false',
     'have_initfd=true',
     'have_listenfd=true',
     'have_verbose=true',
@@ -188,6 +181,7 @@ xwayland_vars = [
     'have_decorate=' + have_libdecor.to_string(),
     'have_enable_ei_portal=' + build_ei_portal.to_string(),
     'have_byteswappedclients=true',
+    'have_hidpi=true',
 ]
 
 pkgconfig = import('pkgconfig')
@@ -196,6 +190,8 @@ pkgconfig.generate(
     filebase: 'xwayland',
     name: 'Xwayland',
     description: 'X Server for Wayland',
+    dataonly: true,
+    install_dir: join_paths(get_option('libdir'), 'pkgconfig'),
     variables: [
         'exec_prefix=${prefix}',
         'xwayland=' + xwayland_path + '/Xwayland',
@@ -209,16 +205,21 @@ xwayland_manpage = configure_file(
 )
 install_man(xwayland_manpage)
 
+desktop_data = configuration_data()
+desktop_data.set('XWAYLAND', xwayland_path + '/Xwayland')
+desktop_data.set('DECORATE', have_libdecor ? '-decorate' : '')
+desktop_file = configure_file(
+    input: 'desktop/org.freedesktop.Xwayland.desktop.in',
+    output: 'org.freedesktop.Xwayland.desktop',
+    configuration: desktop_data,
+)
 datadir = join_paths(get_option('prefix'), get_option('datadir'))
 desktopdir = join_paths(datadir, 'applications')
-install_data('desktop/org.freedesktop.Xwayland.desktop', install_dir : desktopdir)
+install_data(desktop_file, install_dir : desktopdir)
 
-if meson.version().version_compare('>= 0.56.0')
-    meson.override_find_program('Xwayland', xwayland_server)
-
-    meson.override_dependency('xwayland', declare_dependency(
-        variables: [
-            'xwayland=' + xwayland_server.full_path(),
-        ] + xwayland_vars,
-    ))
-endif
+meson.override_find_program('Xwayland', xwayland_server)
+meson.override_dependency('xwayland', declare_dependency(
+    variables: [
+        'xwayland=' + xwayland_server.full_path(),
+    ] + xwayland_vars,
+))

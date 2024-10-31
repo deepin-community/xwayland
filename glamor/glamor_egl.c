@@ -46,6 +46,7 @@
 
 #include "glamor.h"
 #include "glamor_priv.h"
+#include "glamor_glx_provider.h"
 #include "dri3.h"
 
 struct glamor_egl_screen_private {
@@ -58,6 +59,7 @@ struct glamor_egl_screen_private {
     int fd;
     struct gbm_device *gbm;
     int dmabuf_capable;
+    Bool force_vendor; /* if GLVND vendor is forced from options */
 
     CloseScreenProcPtr saved_close_screen;
     DestroyPixmapProcPtr saved_destroy_pixmap;
@@ -463,7 +465,7 @@ glamor_egl_fds_from_pixmap(ScreenPtr screen, PixmapPtr pixmap, int *fds,
 #endif
 }
 
-_X_EXPORT int
+int
 glamor_egl_fd_from_pixmap(ScreenPtr screen, PixmapPtr pixmap,
                           CARD16 *stride, CARD32 *size)
 {
@@ -518,7 +520,7 @@ glamor_egl_fd_name_from_pixmap(ScreenPtr screen,
     return fd;
 }
 
-_X_EXPORT Bool
+Bool
 glamor_back_pixmap_from_fd(PixmapPtr pixmap,
                            int fd,
                            CARD16 width,
@@ -560,6 +562,8 @@ static uint32_t
 gbm_format_for_depth(CARD8 depth)
 {
     switch (depth) {
+    case 15:
+        return GBM_FORMAT_ARGB1555;
     case 16:
         return GBM_FORMAT_RGB565;
     case 24:
@@ -573,7 +577,7 @@ gbm_format_for_depth(CARD8 depth)
     }
 }
 
-_X_EXPORT PixmapPtr
+PixmapPtr
 glamor_pixmap_from_fds(ScreenPtr screen,
                        CARD8 num_fds, const int *fds,
                        CARD16 width, CARD16 height,
@@ -627,7 +631,7 @@ glamor_pixmap_from_fds(ScreenPtr screen,
     return pixmap;
 }
 
-_X_EXPORT PixmapPtr
+PixmapPtr
 glamor_pixmap_from_fd(ScreenPtr screen,
                       int fd,
                       CARD16 width,
@@ -649,7 +653,7 @@ glamor_pixmap_from_fd(ScreenPtr screen,
     return pixmap;
 }
 
-_X_EXPORT Bool
+Bool
 glamor_get_formats(ScreenPtr screen,
                    CARD32 *num_formats, CARD32 **formats)
 {
@@ -689,7 +693,7 @@ glamor_get_formats(ScreenPtr screen,
 #endif
 }
 
-_X_EXPORT Bool
+Bool
 glamor_get_modifiers(ScreenPtr screen, uint32_t format,
                      uint32_t *num_modifiers, uint64_t **modifiers)
 {
@@ -730,7 +734,7 @@ glamor_get_modifiers(ScreenPtr screen, uint32_t format,
 #endif
 }
 
-_X_EXPORT const char *
+const char *
 glamor_egl_get_driver_name(ScreenPtr screen)
 {
 #ifdef GLAMOR_HAS_EGL_QUERY_DRIVER
@@ -771,7 +775,7 @@ glamor_egl_destroy_pixmap(PixmapPtr pixmap)
     return ret;
 }
 
-_X_EXPORT void
+void
 glamor_egl_exchange_buffers(PixmapPtr front, PixmapPtr back)
 {
     EGLImageKHR temp_img;
@@ -887,6 +891,10 @@ glamor_egl_screen_init(ScreenPtr screen, struct glamor_context *glamor_ctx)
 #ifdef DRI3
     glamor_screen_private *glamor_priv = glamor_get_screen_private(screen);
 #endif
+#ifdef GLXEXT
+    static Bool vendor_initialized = FALSE;
+#endif
+    const char *gbm_backend_name;
 
     glamor_egl->saved_close_screen = screen->CloseScreen;
     screen->CloseScreen = glamor_egl_close_screen;
@@ -899,6 +907,13 @@ glamor_egl_screen_init(ScreenPtr screen, struct glamor_context *glamor_ctx)
 
     glamor_ctx->make_current = glamor_egl_make_current;
 
+    /* Use dynamic logic only if vendor is not forced via xorg.conf */
+    if (!glamor_egl->force_vendor) {
+        gbm_backend_name = gbm_device_get_backend_name(glamor_egl->gbm);
+        /* Mesa uses "drm" as backend name, in that case, just do nothing */
+        if (gbm_backend_name && strcmp(gbm_backend_name, "drm") != 0)
+            glamor_set_glvnd_vendor(screen, gbm_backend_name);
+    }
 #ifdef DRI3
     /* Tell the core that we have the interfaces for import/export
      * of pixmaps.
@@ -914,12 +929,21 @@ glamor_egl_screen_init(ScreenPtr screen, struct glamor_context *glamor_ctx)
         /* To do DRI3 device FD generation, we need to open a new fd
          * to the same device we were handed in originally.
          */
-        glamor_egl->device_path = drmGetDeviceNameFromFd2(glamor_egl->fd);
+        glamor_egl->device_path = drmGetRenderDeviceNameFromFd(glamor_egl->fd);
+        if (!glamor_egl->device_path)
+            glamor_egl->device_path = drmGetDeviceNameFromFd2(glamor_egl->fd);
 
         if (!dri3_screen_init(screen, &glamor_dri3_info)) {
             xf86DrvMsg(scrn->scrnIndex, X_ERROR,
                        "Failed to initialize DRI3.\n");
         }
+    }
+#endif
+#ifdef GLXEXT
+    if (!vendor_initialized) {
+        GlxPushProvider(&glamor_provider);
+        xorgGlxCreateVendor();
+        vendor_initialized = TRUE;
     }
 #endif
 }
@@ -955,17 +979,136 @@ glamor_egl_free_screen(ScrnInfoPtr scrn)
     }
 }
 
+static Bool
+glamor_egl_try_big_gl_api(ScrnInfoPtr scrn)
+{
+    struct glamor_egl_screen_private *glamor_egl =
+        glamor_egl_get_screen_private(scrn);
+
+    if (eglBindAPI(EGL_OPENGL_API)) {
+        static const EGLint config_attribs_core[] = {
+            EGL_CONTEXT_OPENGL_PROFILE_MASK_KHR,
+            EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT_KHR,
+            EGL_CONTEXT_MAJOR_VERSION_KHR,
+            GLAMOR_GL_CORE_VER_MAJOR,
+            EGL_CONTEXT_MINOR_VERSION_KHR,
+            GLAMOR_GL_CORE_VER_MINOR,
+            EGL_NONE
+        };
+        static const EGLint config_attribs[] = {
+            EGL_NONE
+        };
+
+        glamor_egl->context = eglCreateContext(glamor_egl->display,
+                                               EGL_NO_CONFIG_KHR, EGL_NO_CONTEXT,
+                                               config_attribs_core);
+
+        if (glamor_egl->context == EGL_NO_CONTEXT)
+            glamor_egl->context = eglCreateContext(glamor_egl->display,
+                                                   EGL_NO_CONFIG_KHR,
+                                                   EGL_NO_CONTEXT,
+                                                   config_attribs);
+    }
+
+    if (glamor_egl->context != EGL_NO_CONTEXT) {
+        if (!eglMakeCurrent(glamor_egl->display,
+                            EGL_NO_SURFACE, EGL_NO_SURFACE, glamor_egl->context)) {
+            xf86DrvMsg(scrn->scrnIndex, X_ERROR,
+                       "Failed to make GL context current\n");
+            return FALSE;
+        }
+
+        if (epoxy_gl_version() < 21) {
+            xf86DrvMsg(scrn->scrnIndex, X_INFO,
+                       "glamor: Ignoring GL < 2.1, falling back to GLES.\n");
+            eglDestroyContext(glamor_egl->display, glamor_egl->context);
+            glamor_egl->context = EGL_NO_CONTEXT;
+        }
+        xf86DrvMsg(scrn->scrnIndex, X_INFO,
+            "glamor: Using OpenGL %d.%d context.\n",
+            epoxy_gl_version() / 10,
+            epoxy_gl_version() % 10);
+    }
+    return TRUE;
+}
+
+static Bool
+glamor_egl_try_gles_api(ScrnInfoPtr scrn)
+{
+    struct glamor_egl_screen_private *glamor_egl =
+        glamor_egl_get_screen_private(scrn);
+        
+    static const EGLint config_attribs[] = {
+        EGL_CONTEXT_CLIENT_VERSION, 2,
+        EGL_NONE
+    };
+    if (!eglBindAPI(EGL_OPENGL_ES_API)) {
+        xf86DrvMsg(scrn->scrnIndex, X_ERROR,
+                    "glamor: Failed to bind GLES API.\n");
+        return FALSE;
+    }
+
+    glamor_egl->context = eglCreateContext(glamor_egl->display,
+                                            EGL_NO_CONFIG_KHR, EGL_NO_CONTEXT,
+                                            config_attribs);
+
+    if (glamor_egl->context != EGL_NO_CONTEXT) {
+        if (!eglMakeCurrent(glamor_egl->display,
+                            EGL_NO_SURFACE, EGL_NO_SURFACE, glamor_egl->context)) {
+            xf86DrvMsg(scrn->scrnIndex, X_ERROR,
+                       "Failed to make GLES context current\n");
+            return FALSE;
+        }
+        xf86DrvMsg(scrn->scrnIndex, X_INFO,
+                "glamor: Using OpenGL ES %d.%d context.\n",
+                epoxy_gl_version() / 10,
+                epoxy_gl_version() % 10);
+    }
+    return TRUE;
+}
+
+enum {
+    GLAMOREGLOPT_RENDERING_API,
+    GLAMOREGLOPT_VENDOR_LIBRARY
+};
+
+static const OptionInfoRec GlamorEGLOptions[] = {
+    { GLAMOREGLOPT_RENDERING_API, "RenderingAPI", OPTV_STRING, {0}, FALSE },
+    { GLAMOREGLOPT_VENDOR_LIBRARY, "GlxVendorLibrary", OPTV_STRING, {0}, FALSE },
+    { -1, NULL, OPTV_NONE, {0}, FALSE },
+};
+
 Bool
 glamor_egl_init(ScrnInfoPtr scrn, int fd)
 {
     struct glamor_egl_screen_private *glamor_egl;
     const GLubyte *renderer;
+    OptionInfoPtr options;
+    const char *api = NULL;
+    Bool es_allowed = TRUE;
+    Bool force_es = FALSE;
+    const char *glvnd_vendor = NULL;
 
-    glamor_egl = calloc(sizeof(*glamor_egl), 1);
+    glamor_egl = calloc(1, sizeof(*glamor_egl));
     if (glamor_egl == NULL)
         return FALSE;
     if (xf86GlamorEGLPrivateIndex == -1)
         xf86GlamorEGLPrivateIndex = xf86AllocateScrnInfoPrivateIndex();
+
+    options = xnfalloc(sizeof(GlamorEGLOptions));
+    memcpy(options, GlamorEGLOptions, sizeof(GlamorEGLOptions));
+    xf86ProcessOptions(scrn->scrnIndex, scrn->options, options);
+    glvnd_vendor = xf86GetOptValString(options, GLAMOREGLOPT_VENDOR_LIBRARY);
+    if (glvnd_vendor) {
+        glamor_set_glvnd_vendor(xf86ScrnToScreen(scrn), glvnd_vendor);
+        glamor_egl->force_vendor = TRUE;
+    }
+    api = xf86GetOptValString(options, GLAMOREGLOPT_RENDERING_API);
+    if (api && !strncasecmp(api, "es", 2))
+        force_es = TRUE;
+    else if (api && !strncasecmp(api, "gl", 2))
+        es_allowed = FALSE;
+    free(options);
 
     scrn->privates[xf86GlamorEGLPrivateIndex].ptr = glamor_egl;
     glamor_egl->fd = fd;
@@ -1004,74 +1147,20 @@ glamor_egl_init(ScrnInfoPtr scrn, int fd)
     GLAMOR_CHECK_EGL_EXTENSION(KHR_surfaceless_context);
     GLAMOR_CHECK_EGL_EXTENSION(KHR_no_config_context);
 
-    if (eglBindAPI(EGL_OPENGL_API)) {
-        static const EGLint config_attribs_core[] = {
-            EGL_CONTEXT_OPENGL_PROFILE_MASK_KHR,
-            EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT_KHR,
-            EGL_CONTEXT_MAJOR_VERSION_KHR,
-            GLAMOR_GL_CORE_VER_MAJOR,
-            EGL_CONTEXT_MINOR_VERSION_KHR,
-            GLAMOR_GL_CORE_VER_MINOR,
-            EGL_NONE
-        };
-        static const EGLint config_attribs[] = {
-            EGL_NONE
-        };
-
-        glamor_egl->context = eglCreateContext(glamor_egl->display,
-                                               EGL_NO_CONFIG_KHR, EGL_NO_CONTEXT,
-                                               config_attribs_core);
-
-        if (glamor_egl->context == EGL_NO_CONTEXT)
-            glamor_egl->context = eglCreateContext(glamor_egl->display,
-                                                   EGL_NO_CONFIG_KHR,
-                                                   EGL_NO_CONTEXT,
-                                                   config_attribs);
+    if (!force_es) {
+        if(!glamor_egl_try_big_gl_api(scrn))
+            goto error;
     }
 
-    if (glamor_egl->context != EGL_NO_CONTEXT) {
-        if (!eglMakeCurrent(glamor_egl->display,
-                            EGL_NO_SURFACE, EGL_NO_SURFACE, glamor_egl->context)) {
-            xf86DrvMsg(scrn->scrnIndex, X_ERROR,
-                       "Failed to make GL context current\n");
+    if (glamor_egl->context == EGL_NO_CONTEXT && es_allowed) {
+        if(!glamor_egl_try_gles_api(scrn))
             goto error;
-        }
-
-        if (epoxy_gl_version() < 21) {
-            xf86DrvMsg(scrn->scrnIndex, X_INFO,
-                       "glamor: Ignoring GL < 2.1, falling back to GLES.\n");
-            eglDestroyContext(glamor_egl->display, glamor_egl->context);
-            glamor_egl->context = EGL_NO_CONTEXT;
-        }
     }
 
     if (glamor_egl->context == EGL_NO_CONTEXT) {
-        static const EGLint config_attribs[] = {
-            EGL_CONTEXT_CLIENT_VERSION, 2,
-            EGL_NONE
-        };
-        if (!eglBindAPI(EGL_OPENGL_ES_API)) {
-            xf86DrvMsg(scrn->scrnIndex, X_ERROR,
-                       "glamor: Failed to bind either GL or GLES APIs.\n");
-            goto error;
-        }
-
-        glamor_egl->context = eglCreateContext(glamor_egl->display,
-                                               EGL_NO_CONFIG_KHR, EGL_NO_CONTEXT,
-                                               config_attribs);
-
-        if (glamor_egl->context == EGL_NO_CONTEXT) {
-            xf86DrvMsg(scrn->scrnIndex, X_ERROR,
-                       "glamor: Failed to create GL or GLES2 contexts\n");
-            goto error;
-        }
-
-        if (!eglMakeCurrent(glamor_egl->display,
-                            EGL_NO_SURFACE, EGL_NO_SURFACE, glamor_egl->context)) {
-            xf86DrvMsg(scrn->scrnIndex, X_ERROR,
-                       "Failed to make GLES2 context current\n");
-            goto error;
-        }
+        xf86DrvMsg(scrn->scrnIndex, X_ERROR,
+                    "glamor: Failed to create GL or GLES2 contexts\n");
+        goto error;
     }
 
     renderer = glGetString(GL_RENDERER);
@@ -1119,6 +1208,8 @@ glamor_egl_init(ScrnInfoPtr scrn, int fd)
         if (xf86Info.debug != NULL)
             glamor_egl->dmabuf_capable = !!strstr(xf86Info.debug,
                                                   "dmabuf_capable");
+        else if (strstr((const char *)renderer, "Intel"))
+            glamor_egl->dmabuf_capable = TRUE;
         else
             glamor_egl->dmabuf_capable = FALSE;
     }

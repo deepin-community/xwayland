@@ -1,12 +1,9 @@
 option('glamor', type: 'boolean', value: true,
        description: 'Enable glamor (default yes)')
-option('xwayland_eglstream', type: 'combo', choices: ['true', 'false', 'auto'],
-       value: 'auto', description: 'Enable EGLStream support for glamor on Xwayland')
 option('xwayland_ei', type: 'combo', choices: ['socket', 'portal', 'false', 'auto'],
        value: 'auto', description: 'Enable emulated input support on Xwayland')
 option('xvfb', type: 'boolean', value: true,
        description: 'Enable Xvfb X server')
-
 
 option('builder_addr', type: 'string', description: 'Builder address', value: 'xorg@lists.freedesktop.org')
 option('builder_string', type: 'string', description: 'Additional builder string')
@@ -47,6 +44,8 @@ option('listen_unix', type: 'boolean', value: true,
 option('listen_local', type: 'boolean', value: true,
        description: 'Listen on local by default')
 
+option('systemd_notify', type: 'combo', choices: ['true', 'false', 'auto'], value: 'auto',
+       description: 'Enable systemd-notify support')
 option('dpms', type: 'boolean', value: true,
        description: 'Xorg DPMS extension')
 option('xf86bigfont', type: 'boolean', value: false,

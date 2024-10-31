@@ -56,15 +56,17 @@ SOFTWARE.
 #include <dix-config.h>
 #endif
 
+#include <errno.h>
+#include <stdio.h>
 #ifdef WIN32
 #include <X11/Xwinsock.h>
 #endif
 #include <X11/Xos.h>            /* for strings, fcntl, time */
-#include <errno.h>
-#include <stdio.h>
 #include <X11/X.h>
-#include "misc.h"
 
+#include "dix/dix_priv.h"
+
+#include "misc.h"
 #include "osdep.h"
 #include "dixstruct.h"
 #include "opaque.h"
@@ -180,17 +182,13 @@ WaitForSomething(Bool are_ready)
 
     were_ready = FALSE;
 
-#ifdef BUSFAULT
     busfault_check();
-#endif
 
     /* We need a while loop here to handle
        crashed connections and the screen saver timeout */
     while (1) {
         /* deal with any blocked jobs */
-        if (workQueue) {
-            ProcessWorkQueue();
-        }
+        ProcessWorkQueue();
 
         timeout = check_timers();
         are_ready = clients_are_ready();

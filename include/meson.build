@@ -44,6 +44,10 @@ else
     conf_data.set('X_BYTE_ORDER', 'X_BIG_ENDIAN')
 endif
 
+# Defining _XSERVER64 on 64bit builds is VITAL, since otherwise Xlib headers
+# would define lots X types (eg. Atom, XID, etc) as 64 bit, but inside the
+# Xserver we really need them to be 32 bit (CARD32). When _SERVER64 is defined
+# the xlib headers will typedef them exactly to CARD32.
 glx_align64 = []
 if cc.sizeof('unsigned long') == 8
    conf_data.set('_XSERVER64', '1')
@@ -91,7 +95,7 @@ endif
 
 conf_data.set('HAVE_LIBBSD', libbsd_dep.found() ? '1' : false)
 # Note: this symbol is used by libXtrans.
-conf_data.set('HAVE_SYSTEMD_DAEMON', libsystemd_daemon_dep.found() ? '1' : false)
+conf_data.set('HAVE_SYSTEMD_DAEMON', build_systemd ? '1' : false)
 conf_data.set('HAVE_XSHMFENCE', xshmfence_dep.found() ? '1' : false)
 conf_data.set('WITH_LIBDRM', libdrm_required ? '1' : false)
 conf_data.set('GLAMOR_HAS_EGL_QUERY_DMABUF',
@@ -167,8 +171,6 @@ conf_data.set('HAVE_VSNPRINTF', cc.has_function('vsnprintf') ? '1' : false)
 conf_data.set('HAVE_WALKCONTEXT', cc.has_function('walkcontext') ? '1' : false)
 conf_data.set('HAVE_XUCRED_CR_PID', cc.has_member('struct xucred', 'cr_pid', prefix : '#include <sys/ucred.h>') ? '1' : false)
 
-conf_data.set('BUSFAULT', conf_data.get('HAVE_SIGACTION'))
-
 # Don't let X dependencies typedef 'pointer'
 conf_data.set('_XTYPEDEF_POINTER', '1')
 conf_data.set('_XITYPEDEF_POINTER', '1')
@@ -198,9 +200,8 @@ conf_data.set('DBE', '1')
 conf_data.set('DPMSExtension', build_dpms ? '1' : false)
 conf_data.set('DRI3', build_dri3 ? '1' : false)
 if build_glx
-    conf_data.set_quoted('DRI_DRIVER_PATH', dri_dep.get_pkgconfig_variable('dridriverdir'))
+    conf_data.set_quoted('DRI_DRIVER_PATH', dri_dep.get_variable(pkgconfig : 'dridriverdir'))
 endif
-conf_data.set('HAS_SHM', build_mitshm ? '1' : false)
 conf_data.set('MITSHM', build_mitshm ? '1' : false)
 conf_data.set('PANORAMIX', build_xinerama ? '1' : false)
 conf_data.set('PRESENT', '1')
@@ -224,6 +225,12 @@ conf_data.set('XSYNC', '1')
 conf_data.set('XTEST', '1')
 conf_data.set('XV', build_xv ? '1' : false)
 conf_data.set('XvExtension', build_xv ? '1' : false)
+
+# needed by several extensions
+build_registry_resource = (build_xselinux or build_res)
+conf_data.set('X_REGISTRY_RESOURCE', build_registry_resource ? '1' : false)
+build_registry_request = (build_xselinux or build_xsecurity or with_dtrace)
+conf_data.set('X_REGISTRY_REQUEST', build_registry_request ? '1' : false)
 
 conf_data.set('HAVE_SHA1_IN_' + sha1.to_upper(), '1', description: 'Use @0@ SHA1 functions'.format(sha1))
 conf_data.set('HAVE_LIBUNWIND', get_option('libunwind'))
@@ -304,9 +311,10 @@ xkb_data.set_quoted('XKM_OUTPUT_DIR', xkb_output_dir + '/')
 configure_file(output : 'xkb-config.h',
                configuration : xkb_data)
 
+build_xwayland_glamor = build_glamor and gbm_dep.found()
+
 xwayland_data = configuration_data()
-xwayland_data.set('XWL_HAS_GLAMOR', build_glamor and (gbm_dep.found() or build_eglstream) ? '1' : false)
-xwayland_data.set('XWL_HAS_EGLSTREAM', build_eglstream ? '1' : false)
+xwayland_data.set('XWL_HAS_GLAMOR', build_xwayland_glamor ? '1' : false)
 xwayland_data.set('XWL_HAS_LIBDECOR', have_libdecor ? '1' : false)
 xwayland_data.set('XWL_HAS_XWAYLAND_EXTENSION', xwaylandproto_dep.found() ? '1' : false)
 xwayland_data.set('XWL_HAS_EI', build_ei)

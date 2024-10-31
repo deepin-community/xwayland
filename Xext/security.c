@@ -28,13 +28,15 @@ in this Software without prior written authorization from The Open Group.
 #include <dix-config.h>
 #endif
 
+#include "dix/dix_priv.h"
+#include "dix/registry_priv.h"
+
 #include "scrnintstr.h"
 #include "inputstr.h"
 #include "windowstr.h"
 #include "propertyst.h"
 #include "colormapst.h"
 #include "privates.h"
-#include "registry.h"
 #include "xacestr.h"
 #include "securitysrv.h"
 #include <X11/extensions/securproto.h>
@@ -147,7 +149,7 @@ SecurityLabelInitial(void)
 /*
  * Looks up a request name
  */
-static _X_INLINE const char *
+static inline const char *
 SecurityLookupRequestName(ClientPtr client)
 {
     return LookupRequestName(client->majorOp, client->minorOp);

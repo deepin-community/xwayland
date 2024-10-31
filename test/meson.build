@@ -2,11 +2,17 @@ simple_xinit = executable(
     'simple-xinit',
     'simple-xinit.c',
     include_directories: inc,
+    dependencies: [ xproto_dep ],
 )
 
 piglit_env = environment()
-piglit_env.set('XSERVER_DIR', meson.source_root())
-piglit_env.set('XSERVER_BUILDDIR', meson.build_root())
+piglit_env.set('XSERVER_DIR', meson.project_source_root())
+piglit_env.set('XSERVER_BUILDDIR', meson.project_build_root())
+
+gles20_env = environment()
+gles20_env.set('XSERVER_DIR', meson.project_source_root())
+gles20_env.set('XSERVER_BUILDDIR', meson.project_build_root())
+gles20_env.set('MESA_GLES_VERSION_OVERRIDE', '2.0')
 
 some_ops = ' -o clear,src,dst,over,xor,disjointover'
 gles2_working_formats = ' -f '+ ','.join(['a8',
@@ -31,7 +37,6 @@ rendercheck_tests_noblend = [
     ['composite/Some/x8r8g8b8', '-t composite -f a8r8g8b8,x8r8g8b8' + some_ops],
     ['composite/Some/a2r10g10b10', '-t composite -f a8r8g8b8,a2r10g10b10' + some_ops],
     ['ca composite/Some/a8r8g8b8', '-t cacomposite -f a8r8g8b8' + some_ops],
-    ['ca composite/Some/a8', '-t cacomposite -f a8r8g8b8,a8' + some_ops],
     ['ca composite/Some/x8r8g8b8', '-t cacomposite -f a8r8g8b8,x8r8g8b8' + some_ops],
     ['ca composite/Some/a2r10g10b10', '-t cacomposite -f a8r8g8b8,a2r10g10b10' + some_ops],
     ['fill', '-t fill'],
@@ -50,14 +55,19 @@ rendercheck_blend = [
     ['blend/Src', '-t blend -o src'],
     ['blend/Over', '-t blend -o over'],
 ]
+#A8 test failing on GLES 2.0 llvmpipe before mesa 23.
+rendercheck_a8 = [
+    ['ca composite/Some/a8', '-t cacomposite -f a8r8g8b8,a8' + some_ops],
+]
 #Exclude 15bpp for now due to GLES limitation (see glamor.c:470)
 rendercheck_blend_gles2 = [
     ['blend/Clear', '-t blend -o clear' + gles2_working_formats],
     ['blend/Src', '-t blend -o src' + gles2_working_formats],
     ['blend/Over', '-t blend -o over' + gles2_working_formats],
 ]
-rendercheck_tests = rendercheck_blend + rendercheck_tests_noblend
-rendercheck_tests_gles2 = rendercheck_blend_gles2 + rendercheck_tests_noblend
+rendercheck_tests = rendercheck_blend + rendercheck_tests_noblend + rendercheck_a8
+rendercheck_tests_gles2_success = rendercheck_blend_gles2 + rendercheck_tests_noblend
+rendercheck_tests_gles3 = rendercheck_blend_gles2 + rendercheck_tests_noblend + rendercheck_a8
 rendercheck = find_program('rendercheck', required:false)
 
 if get_option('xvfb')
@@ -82,7 +92,7 @@ if get_option('xvfb')
                  # Use full_path so people can copy and paste the
                  # command line from testlog.txt easily.
                  args: [
-                     rendercheck.path(),
+                     rendercheck.full_path(),
                      rctest[1].split(' '),
                      '--',
                      xvfb_args,

@@ -70,6 +70,7 @@ PERFORMANCE OF THIS SOFTWARE.
 #include "syncsdk.h"
 #include "protocol-versions.h"
 #include "inputstr.h"
+#include "misync_priv.h"
 
 #include <stdio.h>
 #if !defined(WIN32)
@@ -2318,6 +2319,7 @@ SProcSyncCreateFence(ClientPtr client)
     REQUEST(xSyncCreateFenceReq);
     swaps(&stuff->length);
     REQUEST_SIZE_MATCH(xSyncCreateFenceReq);
+    swapl(&stuff->d);
     swapl(&stuff->fid);
 
     return ProcSyncCreateFence(client);

@@ -331,6 +331,8 @@ extern _X_EXPORT Bool InitButtonClassDeviceStruct(DeviceIntPtr /*device */ ,
 
 extern _X_INTERNAL ValuatorClassPtr AllocValuatorClass(ValuatorClassPtr src,
                                                        int numAxes);
+extern _X_INTERNAL void FreeDeviceClass(int type, void **class);
+
 
 extern _X_EXPORT Bool InitValuatorClassDeviceStruct(DeviceIntPtr /*device */ ,
                                                     int /*numAxes */ ,
@@ -666,6 +668,7 @@ extern void TouchEmitTouchEnd(DeviceIntPtr dev, TouchPointInfoPtr ti, int flags,
 extern void TouchAcceptAndEnd(DeviceIntPtr dev, int touchid);
 
 extern Bool GestureInitGestureInfo(GestureInfoPtr gesture);
+extern void GestureFreeGestureInfo(GestureInfoPtr gesture);
 extern GestureInfoPtr GestureBeginGesture(DeviceIntPtr dev, InternalEvent *ev);
 extern GestureInfoPtr GestureFindActiveByEventType(DeviceIntPtr dev, int type);
 extern void GestureEndGesture(GestureInfoPtr gi);

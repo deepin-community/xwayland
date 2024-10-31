@@ -66,9 +66,6 @@ SOFTWARE.
 #ifndef MAX_REQUEST_SIZE
 #define MAX_REQUEST_SIZE 65535
 #endif
-#ifndef MAX_BIG_REQUEST_SIZE
-#define MAX_BIG_REQUEST_SIZE 4194303
-#endif
 
 typedef struct _FontPathRec *FontPathPtr;
 typedef struct _NewClientRec *NewClientPtr;
@@ -93,11 +90,9 @@ typedef struct _NewClientRec *NewClientPtr;
 extern void ddxBeforeReset(void);
 #endif
 
-#ifdef DDXOSVERRORF
 extern _X_EXPORT void (*OsVendorVErrorFProc) (const char *,
                                               va_list args)
 _X_ATTRIBUTE_PRINTF(1, 0);
-#endif
 
 extern _X_EXPORT Bool WaitForSomething(Bool clients_are_ready);
 
@@ -187,10 +182,6 @@ typedef CARD32 (*OsTimerCallback) (OsTimerPtr timer,
                                    CARD32 time,
                                    void *arg);
 
-extern _X_EXPORT void TimerInit(void);
-
-extern _X_EXPORT Bool TimerForce(OsTimerPtr /* timer */ );
-
 #define TimerAbsolute (1<<0)
 #define TimerForceOld (1<<1)
 
@@ -206,8 +197,6 @@ extern _X_EXPORT void TimerFree(OsTimerPtr /* pTimer */ );
 
 extern _X_EXPORT void SetScreenSaverTimer(void);
 extern _X_EXPORT void FreeScreenSaverTimer(void);
-
-extern _X_EXPORT void AutoResetServer(int /*sig */ );
 
 extern _X_EXPORT void GiveUp(int /*sig */ );
 
@@ -304,7 +293,7 @@ LockServer(void);
 extern _X_EXPORT void
 UnlockServer(void);
 
-extern _X_EXPORT int
+extern _X_EXPORT Bool
 OsLookupColor(int /*screen */ ,
               char * /*name */ ,
               unsigned /*len */ ,
@@ -337,29 +326,6 @@ OsResetSignals(void);
 extern _X_EXPORT void
 OsAbort(void)
     _X_NORETURN;
-
-#if !defined(WIN32)
-extern _X_EXPORT int
-System(const char *);
-extern _X_EXPORT void *
-Popen(const char *, const char *);
-extern _X_EXPORT int
-Pclose(void *);
-extern _X_EXPORT void *
-Fopen(const char *, const char *);
-extern _X_EXPORT int
-Fclose(void *);
-#else
-
-extern const char *
-Win32TempDir(void);
-
-extern int
-System(const char *cmdline);
-
-#define Fopen(a,b) fopen(a,b)
-#define Fclose(a) fclose(a)
-#endif
 
 extern _X_EXPORT Bool
 PrivsElevated(void);
@@ -429,9 +395,6 @@ GetClientFd(ClientPtr);
 
 extern _X_EXPORT Bool
 ClientIsLocal(ClientPtr client);
-
-extern _X_EXPORT int
-GetAccessControl(void);
 
 extern _X_EXPORT void
 AddLocalHosts(void);
@@ -712,9 +675,6 @@ LogPrintMarkers(void);
 
 extern _X_EXPORT void
 xorg_backtrace(void);
-
-extern _X_EXPORT int
-os_move_fd(int fd);
 
 #include <signal.h>
 
