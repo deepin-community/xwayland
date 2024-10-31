@@ -19,7 +19,8 @@ variables:
     FDO_UPSTREAM_REPO: xorg/xserver
     FDO_DISTRIBUTION_VERSION: bullseye-slim
     FDO_DISTRIBUTION_EXEC: 'env FDO_CI_CONCURRENT=${FDO_CI_CONCURRENT} bash .gitlab-ci/debian-install.sh'
-    FDO_DISTRIBUTION_TAG: "2023-07-07-no-mingw"
+    FDO_DISTRIBUTION_TAG: "2024-09-24-no-xorg"
+    MESON_BUILDDIR: "build"
 
 include:
   - project: 'freedesktop/ci-templates'
@@ -60,9 +61,10 @@ debian-bullseye:
     artifacts:
         when: always
         paths:
-            - build/meson-logs/
-            - build/test/piglit-results/
+            - $MESON_BUILDDIR/meson-logs/
+            - $MESON_BUILDDIR/test/piglit-results/
     variables:
+        MESON_ARGS: -Dc_args="-fno-common" -Dprefix=/usr -Dxephyr=true -Dwerror=true
         CCACHE_COMPILERCHECK: content
         CCACHE_DIR: /cache/xserver/cache
         LC_ALL: C.UTF-8
@@ -76,19 +78,24 @@ debian-bullseye:
 meson:
     extends: .common-build-and-test
     script:
-        - .gitlab-ci/build-and-test.sh
+        - .gitlab-ci/meson-build.sh --run-test
+        - .gitlab-ci/check-piglit-results.sh
         - .gitlab-ci/manpages-check
+    variables:
+      XTEST_DIR: /root/xts
+      PIGLIT_DIR: /root/piglit
+      LP_NUM_THREADS: 0
 
 meson-noglamor:
     extends: meson
     variables:
-        MESON_EXTRA_OPTIONS: >
+        MESON_EXTRA_ARGS: >
           -Dglamor=false
 
 meson-nolibdecor:
     extends: meson
     variables:
-        MESON_EXTRA_OPTIONS: >
+        MESON_EXTRA_ARGS: >
           -Dlibdecor=false
 
 meson-dist:
@@ -96,10 +103,16 @@ meson-dist:
     artifacts:
         when: always
         paths:
-            - build/meson-logs/
-            - build/xserver-*/build/meson-logs/
+            - $MESON_BUILDDIR/meson-logs/
+            - $MESON_BUILDDIR/xwayland-*/$MESON_BUILDDIR/meson-logs/
     script:
-        - .gitlab-ci/dist.sh
+        - .gitlab-ci/meson-build.sh --run-dist
+        - mkdir xwayland-tarball
+        - tar xf $MESON_BUILDDIR/meson-dist/xwayland-*.tar.xz -C xwayland-tarball --strip-components=1
+        - .gitlab-ci/meson-build.sh -C xwayland-tarball --skip-test --skip-dist --run-install
+    variables:
+      MESON_DIST_ARGS: --no-tests
+      DESTDIR: xwayland-tarball/install/
 
 #
 # Verify that commit messages are as expected
@@ -107,6 +120,7 @@ meson-dist:
 check-commits:
   extends:
     - .fdo.ci-fairy
+  needs: []
   stage: test
   script:
     - ci-fairy check-commits --junit-xml=results.xml
@@ -125,7 +139,10 @@ check-commits:
 check-merge-request:
   extends:
     - .fdo.ci-fairy
+  needs: []
   stage: test
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
   script:
     - ci-fairy check-merge-request --require-allow-collaboration --junit-xml=results.xml
   artifacts:
@@ -141,4 +158,6 @@ check-merge-request:
 workflow:
   rules:
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+    - if: $CI_OPEN_MERGE_REQUESTS
+      when: never
     - if: $CI_PIPELINE_SOURCE == 'push'

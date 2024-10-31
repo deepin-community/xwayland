@@ -1,16 +1,19 @@
 srcs_os = [
     'WaitFor.c',
     'access.c',
+    'alloc.c',
     'auth.c',
     'backtrace.c',
     'client.c',
     'connection.c',
+    'fmt.c',
     'inputthread.c',
     'io.c',
     'mitauth.c',
     'oscolor.c',
     'osinit.c',
     'ospoll.c',
+    'string.c',
     'utils.c',
     'xdmauth.c',
     'xsha1.c',
@@ -46,7 +49,7 @@ if conf_data.get('HAVE_POLL').to_int() == 0
     srcs_os += 'xserver_poll.c'
 endif
 
-if conf_data.get('BUSFAULT').to_int() != 0
+if conf_data.get('HAVE_SIGACTION').to_int() != 0
     srcs_os += 'busfault.c'
 endif
 

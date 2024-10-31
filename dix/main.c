@@ -82,6 +82,11 @@ Equipment Corporation.
 #include <X11/Xos.h>            /* for unistd.h  */
 #include <X11/Xproto.h>
 #include <pixman.h>
+
+#include "dix/callback_priv.h"
+#include "dix/dix_priv.h"
+#include "dix/registry_priv.h"
+
 #include "scrnintstr.h"
 #include "misc.h"
 #include "os.h"
@@ -102,7 +107,6 @@ Equipment Corporation.
 #include "dixfont.h"
 #include "extnsionst.h"
 #include "privates.h"
-#include "registry.h"
 #include "client.h"
 #include "exevents.h"
 #ifdef PANORAMIX
@@ -152,7 +156,7 @@ dix_main(int argc, char *argv[], char *envp[])
             CreateWellKnownSockets();
             for (i = 1; i < LimitClients; i++)
                 clients[i] = NullClient;
-            serverClient = calloc(sizeof(ClientRec), 1);
+            serverClient = calloc(1, sizeof(ClientRec));
             if (!serverClient)
                 FatalError("couldn't create server client");
             InitClient(serverClient, 0, (void *) NULL);

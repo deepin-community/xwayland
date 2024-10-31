@@ -87,8 +87,11 @@ OR PERFORMANCE OF THIS SOFTWARE.
 #include <stdlib.h>             /* for malloc() */
 #include <errno.h>
 
+#include "os/fmt.h"
+
 #include "input.h"
 #include "opaque.h"
+#include "osdep.h"
 
 #ifdef WIN32
 #include <process.h>
@@ -103,9 +106,7 @@ OR PERFORMANCE OF THIS SOFTWARE.
 #pragma clang diagnostic ignored "-Wformat-nonliteral"
 #endif
 
-#ifdef DDXOSVERRORF
 void (*OsVendorVErrorFProc) (const char *, va_list args) = NULL;
-#endif
 
 /* Default logging parameters. */
 #ifndef DEFAULT_LOG_VERBOSITY
@@ -612,8 +613,20 @@ LogSWrite(int verb, const char *buf, size_t len, Bool end_line)
 #endif
         }
         else if (!inSignalContext && logFile) {
-            if (newline)
-                fprintf(logFile, "[%10.3f] ", GetTimeInMillis() / 1000.0);
+            if (newline) {
+                time_t t = time(NULL);
+                struct tm tm;
+                char fmt_tm[32];
+
+#ifdef WIN32
+                localtime_s(&tm, &t);
+#else
+                localtime_r(&t, &tm);
+#endif
+                strftime(fmt_tm, sizeof(fmt_tm) - 1, "%Y-%m-%d %H:%M:%S", &tm);
+
+                fprintf(logFile, "[%s] ", fmt_tm);
+            }
             newline = end_line;
             fwrite(buf, len, 1, logFile);
             if (logFlush) {
@@ -1023,14 +1036,10 @@ FatalError(const char *f, ...)
 void
 VErrorF(const char *f, va_list args)
 {
-#ifdef DDXOSVERRORF
     if (OsVendorVErrorFProc)
         OsVendorVErrorFProc(f, args);
     else
         LogVWrite(-1, f, args);
-#else
-    LogVWrite(-1, f, args);
-#endif
 }
 
 void

@@ -460,13 +460,6 @@ extern _X_EXPORT XkbAction *XkbResizeKeyActions(XkbDescPtr /* xkb */ ,
                                                 int     /* needed */
     );
 
-extern _X_EXPORT void XkbUpdateKeyTypesFromCore(DeviceIntPtr /* pXDev */ ,
-                                                KeySymsPtr /* syms */ ,
-                                                KeyCode /* first */ ,
-                                                CARD8 /* num */ ,
-                                                XkbChangesPtr   /* pChanges */
-    );
-
 extern _X_EXPORT void XkbUpdateDescActions(XkbDescPtr /* xkb */ ,
                                            KeyCode /* first */ ,
                                            CARD8 /* num */ ,
@@ -861,13 +854,6 @@ extern _X_EXPORT void XkbCopyControls(XkbDescPtr /* dst */ ,
 
 #include "xkbfile.h"
 #include "xkbrules.h"
-
-#define	_XkbListKeycodes	0
-#define	_XkbListTypes		1
-#define	_XkbListCompat		2
-#define	_XkbListSymbols		3
-#define	_XkbListGeometry	4
-#define	_XkbListNumComponents	5
 
 extern _X_EXPORT unsigned int XkbDDXLoadKeymapByNames(DeviceIntPtr /* keybd */ ,
                                                       XkbComponentNamesPtr

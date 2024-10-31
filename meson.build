@@ -3,10 +3,10 @@ project('xwayland', 'c',
             'buildtype=debugoptimized',
             'c_std=gnu99',
         ],
-        version: '23.2.6',
-        meson_version: '>= 0.52.0',
+        version: '24.1.3',
+        meson_version: '>= 0.56.0',
 )
-release_date = '2024-04-09'
+release_date = '2024-10-02'
 
 add_project_arguments('-DHAVE_DIX_CONFIG_H', language: ['c', 'objc'])
 cc = meson.get_compiler('c')
@@ -60,13 +60,15 @@ endforeach
 
 add_project_arguments(common_wflags, language : ['c', 'objc'])
 
-libdrm_req = '>= 2.4.109'
+libdrm_req = '>= 2.4.116'
 libselinux_req = '>= 2.0.86'
 xext_req = '>= 1.0.99.4'
 wayland_req = '>= 1.21.0'
-wayland_protocols_req = '>= 1.30'
+wayland_protocols_req = '>= 1.34'
 gbm_req = '>= 10.2'
+xshmfence_req = '>= 1.1'
 
+x11_dep = dependency('x11')
 xproto_dep = dependency('xproto', version: '>= 7.0.31', fallback: ['xorgproto', 'ext_xorgproto'])
 randrproto_dep = dependency('randrproto', version: '>= 1.6.0', fallback: ['xorgproto', 'ext_xorgproto'])
 renderproto_dep = dependency('renderproto', version: '>= 0.11', fallback: ['xorgproto', 'ext_xorgproto'])
@@ -78,7 +80,7 @@ fixesproto_dep = dependency('fixesproto', version: '>= 6.0', fallback: ['xorgpro
 damageproto_dep = dependency('damageproto', version: '>= 1.1', fallback: ['xorgproto', 'ext_xorgproto'])
 xcmiscproto_dep = dependency('xcmiscproto', version: '>= 1.2.0', fallback: ['xorgproto', 'ext_xorgproto'])
 bigreqsproto_dep = dependency('bigreqsproto', version: '>= 1.1.0', fallback: ['xorgproto', 'ext_xorgproto'])
-presentproto_dep = dependency('presentproto', version: '>= 1.3', fallback: ['xorgproto', 'ext_xorgproto'])
+presentproto_dep = dependency('presentproto', version: '>= 1.4', fallback: ['xorgproto', 'ext_xorgproto'])
 xtrans_dep = dependency('xtrans', version: '>= 1.3.5')
 
 videoproto_dep = dependency('videoproto', fallback: ['xorgproto', 'ext_xorgproto'])
@@ -86,12 +88,13 @@ compositeproto_dep = dependency('compositeproto', version: '>= 0.4', fallback: [
 recordproto_dep = dependency('recordproto', version: '>= 1.13.99.1', fallback: ['xorgproto', 'ext_xorgproto'])
 scrnsaverproto_dep = dependency('scrnsaverproto', version: '>= 1.1', fallback: ['xorgproto', 'ext_xorgproto'])
 resourceproto_dep = dependency('resourceproto', version: '>= 1.2.0', fallback: ['xorgproto', 'ext_xorgproto'])
-dri3proto_dep = dependency('dri3proto', version: '>= 1.2', fallback: ['xorgproto', 'ext_xorgproto'], required: get_option('dri3') == 'true')
+dri3proto_dep = dependency('dri3proto', version: '>= 1.4', fallback: ['xorgproto', 'ext_xorgproto'], required: get_option('dri3') == 'true')
 xineramaproto_dep = dependency('xineramaproto', fallback: ['xorgproto', 'ext_xorgproto'])
 xf86bigfontproto_dep = dependency('xf86bigfontproto', version: '>= 1.2.0', fallback: ['xorgproto', 'ext_xorgproto'], required: get_option('xf86bigfont'))
 xf86vidmodeproto_dep = dependency('xf86vidmodeproto', version: '>= 2.2.99.1', fallback: ['xorgproto', 'ext_xorgproto'])
-xshmfence_dep = dependency('xshmfence', version: '>= 1.1', required: false)
+xshmfence_dep = dependency('xshmfence', version: xshmfence_req, required: false)
 xwaylandproto_dep = dependency('xwaylandproto', version: '>= 1.0', fallback: ['xorgproto', 'ext_xorgproto'], required: false)
+dpmsproto_dep = dependency('dpmsproto', version: '>= 1.2', required: get_option('dpms'))
 
 pixman_dep = dependency('pixman-1')
 libbsd_dep = dependency('libbsd-overlay', required: false)
@@ -99,6 +102,7 @@ xkbcomp_dep = dependency('xkbcomp', required: false)
 xkbfile_dep = dependency('xkbfile')
 xfont2_dep = dependency('xfont2', version: '>= 2.0')
 
+build_systemd = get_option('systemd_notify') == 'true'
 # libsystemd-daemon was moved into libsystemd in version 209
 libsystemd_daemon_dep = dependency('libsystemd', version: '>= 209', required: false)
 if not libsystemd_daemon_dep.found()
@@ -111,7 +115,7 @@ build_hashtable = false
 xkb_dir = get_option('xkb_dir')
 if xkb_dir == ''
     if xkbcomp_dep.found() and xkbcomp_dep.type_name() == 'pkgconfig'
-        xkb_dir = xkbcomp_dep.get_pkgconfig_variable('xkbconfigdir')
+        xkb_dir = xkbcomp_dep.get_variable(pkgconfig : 'xkbconfigdir')
     endif
     if xkb_dir == ''
         xkb_dir = join_paths(get_option('prefix'), 'share/X11/xkb')
@@ -126,7 +130,7 @@ endif
 xkb_bin_dir = get_option('xkb_bin_dir')
 if xkb_bin_dir == ''
     if xkbcomp_dep.found() and xkbcomp_dep.type_name() == 'pkgconfig'
-        xkb_bin_dir = xkbcomp_dep.get_pkgconfig_variable('bindir')
+        xkb_bin_dir = xkbcomp_dep.get_variable(pkgconfig : 'bindir')
     endif
     if xkb_bin_dir == ''
         xkb_bin_dir = join_paths(get_option('prefix'), get_option('bindir'))
@@ -139,7 +143,7 @@ if dfp == ''
     if fontrootdir == ''
         fontutil_dep = dependency('fontutil', required: false)
         if fontutil_dep.found()
-            fontrootdir = fontutil_dep.get_pkgconfig_variable('fontrootdir')
+            fontrootdir = fontutil_dep.get_variable(pkgconfig : 'fontrootdir')
         else
             fontrootdir = join_paths(get_option('prefix'), get_option('datadir'), 'fonts', 'X11')
         endif
@@ -170,6 +174,7 @@ if with_dtrace
     dtrace = find_program('dtrace', required: true)
 endif
 
+libxcvt_dep = dependency('libxcvt', fallback: ['libxcvt', 'libxcvt_dep'], required: true)
 build_xwayland = true
 
 xwayland_path = get_option('xwayland-path')
@@ -184,6 +189,7 @@ xwayland_dep = [
 ]
 
 if build_glamor
+    xwayland_dep += dependency('xshmfence', version: xshmfence_req, required: true)
     xwayland_dep += dependency('libdrm', version: libdrm_req, required: true)
     xwayland_dep += dependency('epoxy', required: true)
 endif
@@ -212,31 +218,11 @@ else
     endif
 endif
 
-eglstream_option = get_option('xwayland_eglstream')
-if build_glamor
-    eglstream_dep = dependency('wayland-eglstream-protocols', required:false)
-    if eglstream_option == 'auto'
-        build_eglstream = eglstream_dep.found()
-    else
-        build_eglstream = eglstream_option == 'true'
-        if build_eglstream and not eglstream_dep.found()
-            error('glamor EGLStream support requested, but wayland-eglstream-protocols not found')
-        endif
-    endif
-else
-    build_eglstream = false
-endif
+libei_dep = dependency('libei-1.0', version: '>= 1.0.0', required: get_option('xwayland_ei') in ['portal', 'socket'])
+liboeffis_dep = dependency('liboeffis-1.0', version: '>= 1.0.0', required: get_option('xwayland_ei') == 'portal')
 
-if build_xwayland
-    libei_dep = dependency('libei-1.0', version: '>= 1.0.0', required: get_option('xwayland_ei') in ['portal', 'socket'])
-    liboeffis_dep = dependency('liboeffis-1.0', version: '>= 1.0.0', required: get_option('xwayland_ei') == 'portal')
-
-    build_ei = libei_dep.found() and get_option('xwayland_ei') != 'false'
-    build_ei_portal = liboeffis_dep.found() and get_option('xwayland_ei') in ['portal', 'auto']
-else
-    build_ei = false
-    build_ei_portal = false
-endif
+build_ei = libei_dep.found() and get_option('xwayland_ei') != 'false'
+build_ei_portal = liboeffis_dep.found() and get_option('xwayland_ei') in ['portal', 'auto']
 
 # Lots of sha1 options, because Linux is about choice :)
 
@@ -346,13 +332,23 @@ endif
 
 libdrm_dep = dependency('libdrm', version: libdrm_req, required: false)
 
+if host_machine.system() in ['freebsd', 'openbsd']
+   epoll_dep = dependency('epoll-shim')
+else
+   epoll_dep = []
+endif
+
+have_eventfd = cc.has_header('sys/eventfd.h', dependencies: epoll_dep)
 if get_option('dri3') == 'auto'
-    build_dri3 = dri3proto_dep.found() and xshmfence_dep.found() and libdrm_dep.found()
+    build_dri3 = dri3proto_dep.found() and xshmfence_dep.found() and libdrm_dep.found() and have_eventfd
 else
     build_dri3 = get_option('dri3') == 'true'
     if build_dri3
        if not xshmfence_dep.found()
            error('DRI3 requested, but xshmfence not found')
+       endif
+       if not have_eventfd
+           error('DRI3 requested, but sys/eventfd.h not found')
        endif
     endif
 endif
@@ -418,6 +414,7 @@ common_dep = [
     xineramaproto_dep,
     xf86bigfontproto_dep,
     xf86vidmodeproto_dep,
+    dpmsproto_dep,
 
     pixman_dep,
     libbsd_dep,
@@ -427,6 +424,7 @@ common_dep = [
 ]
 
 inc = include_directories(
+    '.',
     'Xext',
     'Xi',
     'composite',
@@ -437,6 +435,7 @@ inc = include_directories(
     'miext/damage',
     'miext/sync',
     'dbe',
+    'dix',
     'dri3',
     'include',
     'present',
@@ -481,31 +480,7 @@ if serverconfigdir == ''
     serverconfigdir = join_paths(get_option('prefix'), get_option('libdir'), 'xorg')
 endif
 
-manpage_config = configuration_data()
-manpage_config.set('vendorversion', '"xorg-server @0@" "X Version 11"'.format(meson.project_version()))
-manpage_config.set('xorgversion', '"xorg-server @0@" "X Version 11"'.format(meson.project_version()))
-manpage_config.set('xservername', 'Xorg')
-manpage_config.set('xconfigfile', 'xorg.conf')
-manpage_config.set('projectroot', get_option('prefix'))
-manpage_config.set('apploaddir', '$(appdefaultdir)')
-manpage_config.set('appmansuffix', '1')
-manpage_config.set('drivermansuffix', '4')
-manpage_config.set('adminmansuffix', '8')
-manpage_config.set('libmansuffix', '3')
-manpage_config.set('miscmansuffix', '7')
-manpage_config.set('filemansuffix', '5')
-manpage_config.set('datadir', join_paths(get_option('prefix'), get_option('datadir')))
-manpage_config.set('mandir', join_paths(get_option('prefix'), get_option('mandir')))
-manpage_config.set('sysconfdir', join_paths(get_option('prefix'), get_option('sysconfdir')))
-manpage_config.set('xconfigdir', 'xorg.conf.d')
-manpage_config.set('xkbdir', xkb_dir)
-manpage_config.set('XKB_DFLT_RULES', get_option('xkb_default_rules'))
-manpage_config.set('XKB_DFLT_MODEL', get_option('xkb_default_model'))
-manpage_config.set('XKB_DFLT_LAYOUT', get_option('xkb_default_layout'))
-manpage_config.set('XKB_DFLT_VARIANT', get_option('xkb_default_variant'))
-manpage_config.set('XKB_DFLT_OPTIONS', get_option('xkb_default_options'))
-manpage_config.set('bundle_id_prefix', '...')
-manpage_config.set('default_font_path', default_font_path)
+subdir('man')
 
 require_docs = get_option('docs') == 'true'
 require_devel_docs = get_option('devel-docs') == 'true'
@@ -530,11 +505,8 @@ build_docs_pdf = (get_option('docs-pdf') != 'false' and
     fop.found())
 
 if build_docs or build_docs_devel
-    doc_sgml_path = sgml_doctools_dep.get_pkgconfig_variable('sgmlrootdir')
+    doc_sgml_path = sgml_doctools_dep.get_variable(pkgconfig : 'sgmlrootdir')
     doc_stylesheet_srcdir = join_paths(doc_sgml_path, 'X11')
-
-    # once we bump meson dependency to 0.56.0 we can use
-    # meson.project_build_root() instead of meson.build_root()
 
     # Meson does not and will not support functions so we are copy-pasting
     # documentation build code around which is unfortunate
@@ -542,12 +514,12 @@ if build_docs or build_docs_devel
 
     docs_xmlto_search_flags = [
         '--searchpath', doc_stylesheet_srcdir,
-        '--searchpath', meson.build_root(),
+        '--searchpath', meson.project_build_root(),
     ]
 
     docs_xslt_search_flags = [
         '--path', doc_stylesheet_srcdir,
-        '--path', meson.build_root(),
+        '--path', meson.project_build_root(),
     ]
 endif
 
@@ -610,9 +582,3 @@ subdir('hw')
 if host_machine.system() != 'windows'
     subdir('test')
 endif
-
-install_man(configure_file(
-    input: 'man/Xserver.man',
-    output: 'Xserver.1',
-    configuration: manpage_config,
-))

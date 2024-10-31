@@ -413,7 +413,7 @@ dixRegisterScreenPrivateKey(DevScreenPrivateKey screenKey, ScreenPtr pScreen,
         assert(key->type == type);
         return TRUE;
     }
-    key = calloc(sizeof(DevPrivateKeyRec), 1);
+    key = calloc(1, sizeof(DevPrivateKeyRec));
     if (!key)
         return FALSE;
     if (!dixRegisterPrivateKey(key, type, size)) {
@@ -552,7 +552,7 @@ dixFreePrivates(PrivatePtr privates, DevPrivateType type)
 /*
  * Return size of privates for the specified type
  */
-extern _X_EXPORT int
+int
 dixPrivatesSize(DevPrivateType type)
 {
     assert(type >= PRIVATE_SCREEN);
@@ -596,7 +596,7 @@ dixLookupPrivateOffset(RESTYPE type)
  * Screen-specific privates
  */
 
-extern _X_EXPORT Bool
+Bool
 dixRegisterScreenSpecificPrivateKey(ScreenPtr pScreen, DevPrivateKey key,
                                     DevPrivateType type, unsigned size)
 {

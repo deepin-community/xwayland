@@ -1,5 +1,5 @@
 /*
- * Copyright © 2019 Red Hat, Inc.
+ * Copyright © 2009 Red Hat, Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -20,18 +20,26 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  *
- * Authors:
- *	Adam Jackson <ajax@redhat.com>
  */
 
-#ifndef XWAYLAND_GLX_H
-#define XWAYLAND_GLX_H
+#ifndef _XSERVER_EVENTCONVERT_H_
+#define _XSERVER_EVENTCONVERT_H_
 
-#include <xwayland-config.h>
+#include <X11/X.h>
+#include <X11/extensions/XIproto.h>
 
-#ifdef GLXEXT
-#include "glx_extinit.h"
-extern __GLXprovider glamor_provider;
-#endif
+#include "input.h"
+#include "events.h"
+#include "eventstr.h"
 
-#endif /* XWAYLAND_GLX_H */
+int EventToCore(InternalEvent *event, xEvent **core, int *count);
+int EventToXI(InternalEvent *ev, xEvent **xi, int *count);
+int EventToXI2(InternalEvent *ev, xEvent **xi);
+int GetCoreType(enum EventType type);
+int GetXIType(enum EventType type);
+int GetXI2Type(enum EventType type);
+
+enum EventType GestureTypeToBegin(enum EventType type);
+enum EventType GestureTypeToEnd(enum EventType type);
+
+#endif                          /* _EVENTCONVERT_H_ */

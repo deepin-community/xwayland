@@ -43,6 +43,7 @@ from The Open Group.
 #include "os.h"
 #include "osdep.h"
 #include "dixstruct.h"
+#include "rpcauth.h"
 
 #include <rpc/rpc.h>
 
@@ -155,7 +156,7 @@ SecureRPCCheck(unsigned short data_length, const char *data,
 _X_HIDDEN void
 SecureRPCInit(void)
 {
-    if (rpc_id == ~0L)
+    if (rpc_id == (XID) ~0L)
         AddAuthorization(9, "SUN-DES-1", 0, (char *) 0);
 }
 

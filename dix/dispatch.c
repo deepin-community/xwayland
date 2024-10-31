@@ -101,16 +101,21 @@ Equipment Corporation.
 #include <version-config.h>
 #endif
 
+#include "dix/dix_priv.h"
+#include "dix/registry_priv.h"
+
 #include "windowstr.h"
 #include <X11/fonts/fontstruct.h>
 #include <X11/fonts/libxfont2.h>
+
+#include "dix/screenint_priv.h"
+
 #include "dixfontstr.h"
 #include "gcstruct.h"
 #include "selection.h"
 #include "colormapst.h"
 #include "cursorstr.h"
 #include "scrnintstr.h"
-#include "opaque.h"
 #include "input.h"
 #include "servermd.h"
 #include "extnsionst.h"
@@ -126,7 +131,6 @@ Equipment Corporation.
 #include "xfixesint.h"
 
 #ifdef XSERVER_DTRACE
-#include "registry.h"
 #include "probes.h"
 #endif
 
@@ -3996,9 +4000,6 @@ AddScreen(Bool (*pfnInit) (ScreenPtr /*pScreen */ ,
 
     update_desktop_dimensions();
 
-    dixRegisterScreenPrivateKey(&cursorScreenDevPriv, pScreen, PRIVATE_CURSOR,
-                                0);
-
     return i;
 }
 
@@ -4045,16 +4046,6 @@ AddGPUScreen(Bool (*pfnInit) (ScreenPtr /*pScreen */ ,
     }
 
     update_desktop_dimensions();
-
-    /*
-     * We cannot register the Screen PRIVATE_CURSOR key if cursors are already
-     * created, because dix/privates.c does not have relocation code for
-     * PRIVATE_CURSOR. Once this is fixed the if() can be removed and we can
-     * register the Screen PRIVATE_CURSOR key unconditionally.
-     */
-    if (!dixPrivatesCreated(PRIVATE_CURSOR))
-        dixRegisterScreenPrivateKey(&cursorScreenDevPriv, pScreen,
-                                    PRIVATE_CURSOR, 0);
 
     return i;
 }

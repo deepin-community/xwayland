@@ -89,7 +89,7 @@ glamor_init_pixmap_private_small(PixmapPtr pixmap, glamor_pixmap_private *pixmap
     pixmap_priv->fbo_array = &pixmap_priv->fbo;
 }
 
-_X_EXPORT void
+void
 glamor_set_pixmap_type(PixmapPtr pixmap, glamor_pixmap_type_t type)
 {
     glamor_pixmap_private *pixmap_priv;
@@ -99,7 +99,7 @@ glamor_set_pixmap_type(PixmapPtr pixmap, glamor_pixmap_type_t type)
     glamor_init_pixmap_private_small(pixmap, pixmap_priv);
 }
 
-_X_EXPORT Bool
+Bool
 glamor_set_pixmap_texture(PixmapPtr pixmap, unsigned int tex)
 {
     ScreenPtr screen = pixmap->drawable.pScreen;
@@ -129,7 +129,7 @@ glamor_set_pixmap_texture(PixmapPtr pixmap, unsigned int tex)
     return TRUE;
 }
 
-_X_EXPORT void
+void
 glamor_clear_pixmap(PixmapPtr pixmap)
 {
     ScreenPtr screen = pixmap->drawable.pScreen;
@@ -216,7 +216,9 @@ glamor_create_pixmap(ScreenPtr screen, int w, int h, int depth,
              w <= glamor_priv->glyph_max_dim &&
              h <= glamor_priv->glyph_max_dim)
          || (w == 0 && h == 0)
-         || !glamor_priv->formats[depth].rendering_supported))
+         || !glamor_priv->formats[depth].rendering_supported
+         || (glamor_priv->formats[depth].texture_only &&
+              (usage != GLAMOR_CREATE_FBO_NO_FBO))))
         return fbCreatePixmap(screen, w, h, depth, usage);
     else
         pixmap = fbCreatePixmap(screen, 0, 0, depth, usage);
@@ -367,35 +369,6 @@ fallback:
 }
 
 
-static Bool
-glamor_check_instruction_count(int gl_version)
-{
-    GLint max_native_alu_instructions;
-
-    /* Avoid using glamor if the reported instructions limit is too low,
-     * as this would cause glamor to fallback on sw due to large shaders
-     * which ends up being unbearably slow.
-     */
-    if (gl_version < 30) {
-        if (!epoxy_has_gl_extension("GL_ARB_fragment_program")) {
-            ErrorF("GL_ARB_fragment_program required\n");
-            return FALSE;
-        }
-
-        glGetProgramivARB(GL_FRAGMENT_PROGRAM_ARB,
-                          GL_MAX_PROGRAM_NATIVE_ALU_INSTRUCTIONS_ARB,
-                          &max_native_alu_instructions);
-        if (max_native_alu_instructions < GLAMOR_MIN_ALU_INSTRUCTIONS) {
-            LogMessage(X_WARNING,
-                       "glamor requires at least %d instructions (%d reported)\n",
-                       GLAMOR_MIN_ALU_INSTRUCTIONS, max_native_alu_instructions);
-            return FALSE;
-        }
-    }
-
-    return TRUE;
-}
-
 static void GLAPIENTRY
 glamor_debug_output_callback(GLenum source,
                              GLenum type,
@@ -467,6 +440,7 @@ glamor_add_format(ScreenPtr screen, int depth, CARD32 render_format,
 {
     glamor_screen_private *glamor_priv = glamor_get_screen_private(screen);
     struct glamor_format *f = &glamor_priv->formats[depth];
+    Bool texture_only = FALSE;
 
     /* If we're trying to run on GLES, make sure that we get the read
      * formats that we're expecting, since glamor_transfer relies on
@@ -489,6 +463,13 @@ glamor_add_format(ScreenPtr screen, int depth, CARD32 render_format,
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
         glTexImage2D(GL_TEXTURE_2D, 0, internalformat, 1, 1, 0,
                      format, type, NULL);
+        if (glGetError() != GL_NO_ERROR)
+        {
+            ErrorF("glamor: Cannot upload texture for depth %d.  "
+                   "Falling back to software.\n", depth);
+            glDeleteTextures(1, &tex);
+            return;
+        }
 
         glGenFramebuffers(1, &fbo);
         glBindFramebuffer(GL_FRAMEBUFFER, fbo);
@@ -500,21 +481,23 @@ glamor_add_format(ScreenPtr screen, int depth, CARD32 render_format,
                    "Falling back to software.\n", depth);
             glDeleteTextures(1, &tex);
             glDeleteFramebuffers(1, &fbo);
-            return;
+            texture_only = TRUE;
         }
 
-        glGetIntegerv(GL_IMPLEMENTATION_COLOR_READ_FORMAT, &read_format);
-        glGetIntegerv(GL_IMPLEMENTATION_COLOR_READ_TYPE, &read_type);
+        if (!texture_only) {
+            glGetIntegerv(GL_IMPLEMENTATION_COLOR_READ_FORMAT, &read_format);
+            glGetIntegerv(GL_IMPLEMENTATION_COLOR_READ_TYPE, &read_type);
+        }
 
         glDeleteTextures(1, &tex);
         glDeleteFramebuffers(1, &fbo);
 
-        if (format != read_format || type != read_type) {
+        if (!texture_only && (format != read_format || type != read_type)) {
             ErrorF("glamor: Implementation returned 0x%x/0x%x read format/type "
                    "for depth %d, expected 0x%x/0x%x.  "
                    "Falling back to software.\n",
                    read_format, read_type, depth, format, type);
-            return;
+            texture_only = TRUE;
         }
     }
 
@@ -524,6 +507,7 @@ glamor_add_format(ScreenPtr screen, int depth, CARD32 render_format,
     f->format = format;
     f->type = type;
     f->rendering_supported = rendering_supported;
+    f->texture_only = texture_only;
 }
 
 /* Set up the GL format/types that glamor will use for the various depths
@@ -617,6 +601,7 @@ glamor_setup_formats(ScreenPtr screen)
     glamor_priv->cbcr_format.render_format = PICT_yuv2;
     glamor_priv->cbcr_format.type = GL_UNSIGNED_BYTE;
     glamor_priv->cbcr_format.rendering_supported = TRUE;
+    glamor_priv->cbcr_format.texture_only = FALSE;
 }
 
 /** Set up glamor for an already-configured GL context. */
@@ -689,17 +674,6 @@ glamor_init(ScreenPtr screen, unsigned int flags)
 
     glamor_priv->glsl_version = epoxy_glsl_version();
 
-    if (glamor_priv->is_gles) {
-        /* Force us back to the base version of our programs on an ES
-         * context, anyway.  Basically glamor only uses desktop 1.20
-         * or 1.30 currently.  1.30's new features are also present in
-         * ES 3.0, but our glamor_program.c constructions use a lot of
-         * compatibility features (to reduce the diff between 1.20 and
-         * 1.30 programs).
-         */
-        glamor_priv->glsl_version = 120;
-    }
-
     /* We'd like to require GL_ARB_map_buffer_range or
      * GL_OES_map_buffer_range, since it offers more information to
      * the driver than plain old glMapBuffer() or glBufferSubData().
@@ -725,14 +699,12 @@ glamor_init(ScreenPtr screen, unsigned int flags)
             goto fail;
         }
 
-        if (!glamor_check_instruction_count(gl_version))
-            goto fail;
-
         /* Glamor rendering assumes that platforms with GLSL 130+
          * have instanced arrays, but this is not always the case.
          * etnaviv offers GLSL 140 with OpenGL 2.1.
          */
         if (glamor_glsl_has_ints(glamor_priv) &&
+            !glamor_priv->is_gles &&
             !epoxy_has_gl_extension("GL_ARB_instanced_arrays"))
                 glamor_priv->glsl_version = 120;
     } else {
@@ -887,7 +859,16 @@ glamor_init(ScreenPtr screen, unsigned int flags)
     ps->Glyphs = glamor_composite_glyphs;
 
     glamor_init_vbo(screen);
-    glamor_init_gradient_shader(screen);
+
+    glamor_priv->enable_gradient_shader = TRUE;
+
+    if (!glamor_init_gradient_shader(screen)) {
+        LogMessage(X_WARNING,
+                   "glamor%d: Cannot initialize gradient shader, falling back to software rendering for gradients\n",
+                   screen->myNum);
+        glamor_priv->enable_gradient_shader = FALSE;
+    }
+
     glamor_pixmap_init(screen);
     glamor_sync_init(screen);
 
@@ -929,6 +910,7 @@ glamor_close_screen(ScreenPtr screen)
     glamor_priv = glamor_get_screen_private(screen);
     glamor_sync_close(screen);
     glamor_composite_glyphs_fini(screen);
+    glamor_set_glvnd_vendor(screen, NULL);
     screen->CloseScreen = glamor_priv->saved_procs.close_screen;
 
     screen->CreateGC = glamor_priv->saved_procs.create_gc;
@@ -962,6 +944,31 @@ glamor_fini(ScreenPtr screen)
 }
 
 void
+glamor_set_glvnd_vendor(ScreenPtr screen, const char *vendor_name)
+{
+    glamor_screen_private *glamor_priv = glamor_get_screen_private(screen);
+
+    if (!glamor_priv)
+        return;
+
+    if (glamor_priv->glvnd_vendor)
+        free(glamor_priv->glvnd_vendor);
+
+    glamor_priv->glvnd_vendor = xnfstrdup(vendor_name);
+}
+
+const char *
+glamor_get_glvnd_vendor(ScreenPtr screen)
+{
+    glamor_screen_private *glamor_priv = glamor_get_screen_private(screen);
+
+    if (!glamor_priv)
+        return NULL;
+
+    return glamor_priv->glvnd_vendor;
+}
+
+void
 glamor_enable_dri3(ScreenPtr screen)
 {
     glamor_screen_private *glamor_priv = glamor_get_screen_private(screen);
@@ -977,7 +984,7 @@ glamor_supports_pixmap_import_export(ScreenPtr screen)
     return glamor_priv->dri3_enabled;
 }
 
-_X_EXPORT void
+void
 glamor_set_drawable_modifiers_func(ScreenPtr screen,
                                    GetDrawableModifiersFuncPtr func)
 {
@@ -986,7 +993,7 @@ glamor_set_drawable_modifiers_func(ScreenPtr screen,
     glamor_priv->get_drawable_modifiers = func;
 }
 
-_X_EXPORT Bool
+Bool
 glamor_get_drawable_modifiers(DrawablePtr draw, uint32_t format,
                               uint32_t *num_modifiers, uint64_t **modifiers)
 {
@@ -1039,7 +1046,7 @@ _glamor_fds_from_pixmap(ScreenPtr screen, PixmapPtr pixmap, int *fds,
     return 0;
 }
 
-_X_EXPORT int
+int
 glamor_fds_from_pixmap(ScreenPtr screen, PixmapPtr pixmap, int *fds,
                        uint32_t *strides, uint32_t *offsets,
                        uint64_t *modifier)
@@ -1048,7 +1055,7 @@ glamor_fds_from_pixmap(ScreenPtr screen, PixmapPtr pixmap, int *fds,
                                    NULL, modifier);
 }
 
-_X_EXPORT int
+int
 glamor_fd_from_pixmap(ScreenPtr screen,
                       PixmapPtr pixmap, CARD16 *stride, CARD32 *size)
 {
@@ -1065,7 +1072,7 @@ glamor_fd_from_pixmap(ScreenPtr screen,
     return fd;
 }
 
-_X_EXPORT int
+int
 glamor_shareable_fd_from_pixmap(ScreenPtr screen,
                                 PixmapPtr pixmap, CARD16 *stride, CARD32 *size)
 {

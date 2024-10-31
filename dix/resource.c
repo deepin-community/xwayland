@@ -122,6 +122,9 @@ Equipment Corporation.
 #endif
 
 #include <X11/X.h>
+
+#include "dix/registry_priv.h"
+
 #include "misc.h"
 #include "os.h"
 #include "resource.h"
@@ -140,7 +143,6 @@ Equipment Corporation.
 #endif
 #include "xace.h"
 #include <assert.h>
-#include "registry.h"
 #include "gcstruct.h"
 
 #ifdef XSERVER_DTRACE
@@ -493,7 +495,7 @@ static const struct ResourceType predefTypes[] = {
 
 CallbackListPtr ResourceStateCallback;
 
-static _X_INLINE void
+static inline void
 CallResourceStateCallback(ResourceState state, ResourceRec * res)
 {
     if (ResourceStateCallback) {
@@ -683,7 +685,7 @@ HashResourceID(XID id, unsigned int numBits)
     id &= mask;
     if (numBits < 9)
         return (id ^ (id >> numBits) ^ (id >> (numBits<<1))) & ~((~0U) << numBits);
-    return (id ^ (id >> numBits)) & ~((~0) << numBits);
+    return (id ^ (id >> numBits)) & ~((~0U) << numBits);
 }
 
 static XID
