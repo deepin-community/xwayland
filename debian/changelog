@@ -1,3 +1,9 @@
+xwayland (2:23.2.6-deepin1) unstable; urgency=medium
+
+  * merge upstream patch,fix CVE-2024-9632.
+
+ -- kongxinglong <kongxinglong@uniontech.com>  Wed, 13 Nov 2024 14:42:04 +0800
+
 xwayland (2:23.2.6-1) unstable; urgency=medium
 
   * New upstream release.
