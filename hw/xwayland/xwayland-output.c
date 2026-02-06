@@ -718,7 +718,7 @@ xwl_output_set_name(struct xwl_output *xwl_output, const char *name)
     /* And leases' names as well */
     xorg_list_for_each_entry(lease, &pScrPriv->leases, list) {
         for (i = 0; i < lease->numOutputs; i++) {
-            if (!strcmp(name, pScrPriv->outputs[i]->name)) {
+            if (!strcmp(name, lease->outputs[i]->name)) {
                 ErrorF("A lease output named '%s' already exists", name);
                 return;
             }
@@ -907,6 +907,8 @@ xwl_output_create(struct xwl_screen *xwl_screen, uint32_t id,
     struct xwl_output *xwl_output;
     char name[MAX_OUTPUT_NAME] = { 0 };
 
+    --xwl_screen->expecting_event;
+
     xwl_output = calloc(1, sizeof *xwl_output);
     if (xwl_output == NULL) {
         ErrorF("%s ENOMEM\n", __func__);
@@ -955,7 +957,6 @@ xwl_output_create(struct xwl_screen *xwl_screen, uint32_t id,
      * use it when binding to the xdg-output protocol...
      */
     xorg_list_append(&xwl_output->link, &xwl_screen->output_list);
-    --xwl_screen->expecting_event;
 
     if (xwl_screen->xdg_output_manager)
         xwl_output_get_xdg_output(xwl_output);

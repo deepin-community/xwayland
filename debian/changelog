@@ -1,8 +1,78 @@
-xwayland (2:24.1.4-0deepin) unstable; urgency=medium
+xwayland (2:24.1.9-1) unstable; urgency=medium
+
+  [ Alessandro Astone ]
+  * Enable input emulation through XDG Desktop Portal (LP: #2075962)
+  * Actually set debian builder string
+
+  [ Timo Aaltonen ]
+  * New upstream release.
+    - CVE-2025-62229
+    - CVE-2025-62230
+    - CVE-2025-62231
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Mon, 24 Nov 2025 19:17:29 +0200
+
+xwayland (2:24.1.8-1) unstable; urgency=medium
+
+  * Add README.Debian.security to clarify how the security issues are
+    inherited from the shared codebase with xorg-server, and don't
+    actually apply to xwayland. Thanks, Moritz Muehlenhoff!
+  * New upstream release. (Closes: #1108369)
+    - CVE-2025-49175
+    - CVE-2025-49176
+    - CVE-2025-49177
+    - CVE-2025-49178
+    - CVE-2025-49179
+    - CVE-2025-49180
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Wed, 27 Aug 2025 10:25:23 +0300
+
+xwayland (2:24.1.6-1) unstable; urgency=medium
+
+  * New upstream release. Fixes:
+    - CVE-2025-26594: use-after-free of the root cursor
+    - CVE-2025-26595: buffer overflow in XkbVModMaskText
+    - CVE-2025-26596: heap overflow in XkbWriteKeySyms
+    - CVE-2025-26597: buffer overflow in XkbChangeTypesOfKey
+    - CVE-2025-26598: out-of-bounds write in CreatePointerBarrierClient
+    - CVE-2025-26599: use of uninitialized pointer in compRedirectWindow
+    - CVE-2025-26600: use-after-free in PlayReleasedEvents
+    - CVE-2025-26601: use-after-free in SyncInitTrigger
+    (Closes: #1098907).
+
+ -- Emilio Pozuelo Monfort <pochu@debian.org>  Wed, 26 Feb 2025 10:22:59 +0100
+
+xwayland (2:24.1.5-1) unstable; urgency=medium
 
   * New upstream release.
+  * patches: Drop upstreamed patches.
+  * xwayland-Detect-gbm_bo_get_fd_for_plane-at-runtime.patch: Dropped,
+    likely unneeded by now for Xilinx.
 
- -- lichenggang <lichenggang@deepin.org>  Thu, 31 Oct 2024 10:19:37 +0800
+ -- Timo Aaltonen <tjaalton@debian.org>  Thu, 06 Feb 2025 09:56:57 +0200
+
+xwayland (2:24.1.4-3) unstable; urgency=medium
+
+  [ Alessandro Astone ]
+  * Add patch to fix possible crash after the previous backport
+    (LP: #2096653)
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Mon, 27 Jan 2025 13:17:11 +0200
+
+xwayland (2:24.1.4-2) unstable; urgency=medium
+
+  [ Alessandro Astone ]
+  * Backport patch to fix busy-loop on inactive VT (LP: #2043517)
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Mon, 16 Dec 2024 14:27:57 +0200
+
+xwayland (2:24.1.4-1) unstable; urgency=medium
+
+  * New upstream release
+    + CVE-2024-9632: Heap-based buffer overflow privilege escalation in
+      _XkbSetCompatMap (closes: #1086244)
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Wed, 30 Oct 2024 12:01:08 +0200
 
 xwayland (2:24.1.3-1) unstable; urgency=medium
 

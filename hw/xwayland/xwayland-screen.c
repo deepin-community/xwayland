@@ -485,7 +485,7 @@ registry_global(void *data, struct wl_registry *registry, uint32_t id,
     struct xwl_screen *xwl_screen = data;
 
     if (strcmp(interface, wl_compositor_interface.name) == 0) {
-        uint32_t request_version = 1;
+        uint32_t request_version = WL_SURFACE_SET_BUFFER_SCALE_SINCE_VERSION;
 
         if (version >= WL_SURFACE_DAMAGE_BUFFER_SINCE_VERSION)
             request_version = WL_SURFACE_DAMAGE_BUFFER_SINCE_VERSION;
@@ -1141,6 +1141,9 @@ xwl_screen_init(ScreenPtr pScreen, int argc, char **argv)
 
     xwl_screen->ConfigNotify = pScreen->ConfigNotify;
     pScreen->ConfigNotify = xwl_config_notify;
+
+    xwl_screen->ReparentWindow = pScreen->ReparentWindow;
+    pScreen->ReparentWindow = xwl_reparent_window;
 
     xwl_screen->ResizeWindow = pScreen->ResizeWindow;
     pScreen->ResizeWindow = xwl_resize_window;

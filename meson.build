@@ -3,10 +3,10 @@ project('xwayland', 'c',
             'buildtype=debugoptimized',
             'c_std=gnu99',
         ],
-        version: '24.1.4',
+        version: '24.1.9',
         meson_version: '>= 0.56.0',
 )
-release_date = '2024-10-29'
+release_date = '2025-10-28'
 
 add_project_arguments('-DHAVE_DIX_CONFIG_H', language: ['c', 'objc'])
 cc = meson.get_compiler('c')

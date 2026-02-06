@@ -148,8 +148,9 @@ struct xwl_tablet_tool {
     double rotation;
     double slider;
 
-    uint32_t buttons_now,
-             buttons_prev;
+    uint32_t buttons;
+    Bool tip;
+    uint32_t effective_buttons;
 
     int32_t wheel_clicks;
 

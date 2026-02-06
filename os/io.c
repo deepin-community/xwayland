@@ -299,6 +299,10 @@ ReadRequestFromClient(ClientPtr client)
                 needed = get_big_req_len(request, client);
         }
         client->req_len = needed;
+        if (needed > MAXINT >> 2) {
+            /* Check for potential integer overflow */
+            return -(BadLength);
+        }
         needed <<= 2;           /* needed is in bytes now */
     }
     if (gotnow < needed) {
@@ -394,6 +398,8 @@ ReadRequestFromClient(ClientPtr client)
                     needed = get_big_req_len(request, client);
             }
             client->req_len = needed;
+            if (needed > MAXINT >> 2)
+                return -(BadLength);
             needed <<= 2;
         }
         if (gotnow < needed) {
@@ -441,7 +447,7 @@ ReadRequestFromClient(ClientPtr client)
      */
 
     gotnow -= needed;
-    if (!gotnow)
+    if (!gotnow && !oci->ignoreBytes)
         AvailableInput = oc;
     if (move_header) {
         if (client->req_len < bytes_to_int32(sizeof(xBigReq) - sizeof(xReq))) {

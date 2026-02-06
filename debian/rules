@@ -11,7 +11,8 @@ SUPPORT = https://www.debian.org/support
 
 override_dh_auto_configure:
 	dh_auto_configure -- \
-		-Dbuilder_addr="debian-x@lists.debian.org"
+		-Dxwayland_ei=portal \
+		-Dbuilder_addr="debian-x@lists.debian.org" \
 		-Dbuilder_string="$(DEB_SOURCE) $(DEB_VERSION_UPSTREAM) ($(SUPPORT))"
 
 override_dh_auto_install:

@@ -1183,9 +1183,20 @@ keyboard_handle_keymap(void *data, struct wl_keyboard *keyboard,
 
     XkbUpdateDescActions(xkb, xkb->min_key_code, XkbNumKeys(xkb), &changes);
 
-    if (xwl_seat->keyboard->key)
+    memcpy(
+        xwl_seat->keyboard->kbdfeed->ctrl.autoRepeats,
+        xkb->ctrls->per_key_repeat,
+        XkbPerKeyBitArraySize
+    );
+    if (xwl_seat->keyboard->key) {
         /* Keep the current controls */
         XkbCopyControls(xkb, xwl_seat->keyboard->key->xkbInfo->desc);
+        memcpy(
+            xkb->ctrls->per_key_repeat,
+            xwl_seat->keyboard->kbdfeed->ctrl.autoRepeats,
+            XkbPerKeyBitArraySize
+        );
+    }
 
     XkbDeviceApplyKeymap(xwl_seat->keyboard, xkb);
 
@@ -1588,9 +1599,13 @@ find_toplevel_callback(void *resource, XID id, void *user_data)
     WindowPtr window = resource;
     WindowPtr *toplevel = user_data;
 
-    /* Pick the first realized toplevel we find */
-    if (*toplevel == NullWindow && window->realized && xwl_window_is_toplevel(window))
-        *toplevel = window;
+    while (*toplevel == NullWindow && window) {
+        /* Pick the first realized toplevel we find */
+        if (window->realized && xwl_window_is_toplevel(window))
+            *toplevel = window;
+        else
+            window = window->parent;
+    }
 }
 
 static WindowPtr
@@ -2172,22 +2187,17 @@ tablet_tool_down(void *data, struct zwp_tablet_tool_v2 *tool, uint32_t serial)
 {
     struct xwl_tablet_tool *xwl_tablet_tool = data;
     struct xwl_seat *xwl_seat = xwl_tablet_tool->seat;
-    ValuatorMask mask;
 
+    xwl_tablet_tool->tip = TRUE;
     xwl_seat->xwl_screen->serial = serial;
-
-    valuator_mask_zero(&mask);
-    QueuePointerEvents(xwl_tablet_tool->xdevice, ButtonPress, 1, 0, &mask);
 }
 
 static void
 tablet_tool_up(void *data, struct zwp_tablet_tool_v2 *tool)
 {
     struct xwl_tablet_tool *xwl_tablet_tool = data;
-    ValuatorMask mask;
 
-    valuator_mask_zero(&mask);
-    QueuePointerEvents(xwl_tablet_tool->xdevice, ButtonRelease, 1, 0, &mask);
+    xwl_tablet_tool->tip = FALSE;
 }
 
 static void
@@ -2310,7 +2320,7 @@ tablet_tool_button_state(void *data, struct zwp_tablet_tool_v2 *tool,
 {
     struct xwl_tablet_tool *xwl_tablet_tool = data;
     struct xwl_seat *xwl_seat = xwl_tablet_tool->seat;
-    uint32_t *mask = &xwl_tablet_tool->buttons_now;
+    uint32_t *mask = &xwl_tablet_tool->buttons;
     int xbtn = 0;
 
     /* BTN_0 .. BTN_9 */
@@ -2375,7 +2385,7 @@ tablet_tool_frame(void *data, struct zwp_tablet_tool_v2 *tool, uint32_t time)
 {
     struct xwl_tablet_tool *xwl_tablet_tool = data;
     ValuatorMask mask;
-    uint32_t released, pressed, diff;
+    uint32_t effective_buttons, released, pressed, diff;
     int button;
 
     valuator_mask_zero(&mask);
@@ -2391,9 +2401,14 @@ tablet_tool_frame(void *data, struct zwp_tablet_tool_v2 *tool, uint32_t time)
 
     valuator_mask_zero(&mask);
 
-    diff = xwl_tablet_tool->buttons_prev ^ xwl_tablet_tool->buttons_now;
-    released = diff & ~xwl_tablet_tool->buttons_now;
-    pressed = diff & xwl_tablet_tool->buttons_now;
+    effective_buttons = xwl_tablet_tool->buttons;
+    if (xwl_tablet_tool->tip) {
+        SetBit(&effective_buttons, 0);
+    }
+
+    diff = effective_buttons ^ xwl_tablet_tool->effective_buttons;
+    released = diff & ~effective_buttons;
+    pressed = diff & effective_buttons;
 
     button = 1;
     while (released) {
@@ -2413,7 +2428,7 @@ tablet_tool_frame(void *data, struct zwp_tablet_tool_v2 *tool, uint32_t time)
         pressed >>= 1;
     }
 
-    xwl_tablet_tool->buttons_prev = xwl_tablet_tool->buttons_now;
+    xwl_tablet_tool->effective_buttons = effective_buttons;
 
     while (xwl_tablet_tool->wheel_clicks) {
             if (xwl_tablet_tool->wheel_clicks < 0) {
