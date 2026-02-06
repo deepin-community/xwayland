@@ -50,7 +50,7 @@ int XkbKeyboardErrorCode;
 CARD32 xkbDebugFlags = 0;
 static CARD32 xkbDebugCtrls = 0;
 
-static RESTYPE RT_XKBCLIENT;
+RESTYPE RT_XKBCLIENT = 0;
 
 /***====================================================================***/
 
@@ -1092,10 +1092,10 @@ XkbSizeKeySyms(XkbDescPtr xkb, xkbGetMapReply * rep)
     len = rep->nKeySyms * SIZEOF(xkbSymMapWireDesc);
     symMap = &xkb->map->key_sym_map[rep->firstKeySym];
     for (i = nSyms = 0; i < rep->nKeySyms; i++, symMap++) {
-        if (symMap->offset != 0) {
-            nSymsThisKey = XkbNumGroups(symMap->group_info) * symMap->width;
-            nSyms += nSymsThisKey;
-        }
+        nSymsThisKey = XkbNumGroups(symMap->group_info) * symMap->width;
+        if (nSymsThisKey == 0)
+            continue;
+        nSyms += nSymsThisKey;
     }
     len += nSyms * 4;
     rep->totalSyms = nSyms;
@@ -2990,6 +2990,8 @@ _XkbSetCompatMap(ClientPtr client, DeviceIntPtr dev,
         XkbSymInterpretPtr sym;
         unsigned int skipped = 0;
 
+        if ((unsigned) (req->firstSI + req->nSI) > USHRT_MAX)
+            return BadValue;
         if ((unsigned) (req->firstSI + req->nSI) > compat->size_si) {
             compat->num_si = compat->size_si = req->firstSI + req->nSI;
             compat->sym_interpret = reallocarray(compat->sym_interpret,

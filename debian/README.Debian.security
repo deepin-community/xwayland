@@ -1,0 +1,9 @@
+xwayland bundles many components from xorg-server. xorg-server is often affected
+by security issues due to it's very old legacy codebase and the fact that the
+X server runs under the root user.
+
+With xwayland the X server running on top of Wayland runs with the 
+permissions of the current user (which neutralises such security problems).
+xorg-server security vulnerabilities in the embedded xorg-server code are
+not tracked or updated in Debian (other than xwayland being updated to newer
+copies of xorg-server via new upstream releases).
