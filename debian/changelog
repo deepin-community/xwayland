@@ -1,3 +1,21 @@
+xwayland (2:24.1.11-1) unstable; urgency=medium
+
+  * New upstream release.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Tue, 28 Apr 2026 09:11:08 +0300
+
+xwayland (2:24.1.10-1) unstable; urgency=medium
+
+  * New upstream release.
+    - CVE-2026-33999: XKB Integer Underflow in XkbSetCompatMap()
+    - CVE-2026-34000: XKB Out-of-bounds Read in CheckSetGeom()
+    - CVE-2026-34001: XSYNC Use-after-free in miSyncTriggerFence()
+    - CVE-2026-34002: XKB Out-of-bounds read in CheckModifierMap()
+    - CVE-2026-34003: XKB Buffer overflow in CheckKeyTypes()
+  * control: Bump build-depends on x11proto-dev.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Tue, 14 Apr 2026 17:16:12 +0300
+
 xwayland (2:24.1.9-1) unstable; urgency=medium
 
   [ Alessandro Astone ]

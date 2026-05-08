@@ -181,6 +181,7 @@ xwl_property_callback(CallbackListPtr *pcbl, void *closure,
         xwl_window_update_property(xwl_window, rec);
 }
 
+#ifdef XACE
 #define readOnlyPropertyAccessMask (DixReadAccess |\
                                     DixGetAttrAccess |\
                                     DixListPropAccess |\
@@ -207,6 +208,7 @@ xwl_access_property_callback(CallbackListPtr *pcbl, void *closure,
 }
 
 #undef readOnlyPropertyAccessMask
+#endif /* XACE */
 
 static void
 xwl_root_window_finalized_callback(CallbackListPtr *pcbl,
@@ -237,7 +239,9 @@ xwl_close_screen(ScreenPtr screen)
     xwl_dmabuf_feedback_destroy(&xwl_screen->default_feedback);
 #endif
     DeleteCallback(&PropertyStateCallback, xwl_property_callback, screen);
+#ifdef XACE
     XaceDeleteCallback(XACE_PROPERTY_ACCESS, xwl_access_property_callback, screen);
+#endif
 
     xorg_list_for_each_entry_safe(xwl_output, next_xwl_output,
                                   &xwl_screen->output_list, link)
@@ -1168,7 +1172,9 @@ xwl_screen_init(ScreenPtr pScreen, int argc, char **argv)
 
     AddCallback(&PropertyStateCallback, xwl_property_callback, pScreen);
     AddCallback(&RootWindowFinalizeCallback, xwl_root_window_finalized_callback, pScreen);
+#ifdef XACE
     XaceRegisterCallback(XACE_PROPERTY_ACCESS, xwl_access_property_callback, pScreen);
+#endif
 
     xwl_screen_setup_custom_vector(xwl_screen);
 

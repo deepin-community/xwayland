@@ -24,6 +24,7 @@
 #include <dix-config.h>
 #endif
 
+#include <assert.h>
 #include <X11/X.h>
 #include <X11/Xproto.h>
 #include <stdlib.h>
