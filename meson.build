@@ -3,10 +3,10 @@ project('xwayland', 'c',
             'buildtype=debugoptimized',
             'c_std=gnu99',
         ],
-        version: '24.1.9',
+        version: '24.1.11',
         meson_version: '>= 0.56.0',
 )
-release_date = '2025-10-28'
+release_date = '2026-04-27'
 
 add_project_arguments('-DHAVE_DIX_CONFIG_H', language: ['c', 'objc'])
 cc = meson.get_compiler('c')
@@ -273,7 +273,7 @@ foreach t : test_sha1
             sha1_dep = libsha1_dep
         endif
     elif t == 'libnettle'
-        nettle_dep = dependency('nettle', required: false)
+        nettle_dep = dependency('nettle', version: '>= 2.6', required: false)
         if nettle_dep.found()
             sha1_found = true
             sha1_dep = nettle_dep
@@ -452,7 +452,7 @@ if get_option('xselinux') != 'false'
     if get_option('xselinux') == 'true'
         build_xselinux = true
     else
-        build_xselinux = dep_selinux.found() and dep_audit.found()
+        build_xselinux = dep_selinux.found() and dep_audit.found() and build_xace
     endif
 
     if build_xselinux
@@ -460,6 +460,10 @@ if get_option('xselinux') != 'false'
         common_dep += dep_audit
     endif
 endif
+if build_xselinux and not build_xace
+    error('cannot build SELinux extension without X-ACE')
+endif
+
 
 socket_dep = []
 if host_machine.system() == 'windows'

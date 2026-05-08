@@ -26,7 +26,7 @@ Build-Depends:
  libwayland-dev,
  libwayland-dev:native,
  mesa-common-dev,
- x11proto-dev (>= 2023.2),
+ x11proto-dev (>= 2024.1),
  xfonts-utils,
  xtrans-dev,
  wayland-protocols,

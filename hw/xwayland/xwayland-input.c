@@ -24,6 +24,7 @@
  * SOFTWARE.
  */
 
+#include <math.h>
 #include <xwayland-config.h>
 
 #include <linux/input.h>
@@ -522,7 +523,9 @@ pointer_handle_enter(void *data, struct wl_pointer *pointer,
     int sx, sy;
     int dx, dy;
     ScreenPtr pScreen = xwl_screen->screen;
+    xwl_seat->pointer_enter_count++;
     ValuatorMask mask;
+    DeviceEvent enter;
 
     /* There's a race here where if we create and then immediately
      * destroy a surface, we might end up in a state where the Wayland
@@ -553,8 +556,10 @@ pointer_handle_enter(void *data, struct wl_pointer *pointer,
     (*pScreen->SetCursorPosition) (dev, pScreen, dx + sx, dy + sy, TRUE);
 
     miPointerInvalidateSprite(master);
+    init_device_event(&enter, dev, currentTime.milliseconds, EVENT_SOURCE_FOCUS);
+    enter.type = ET_Enter;
 
-    CheckMotion(NULL, master);
+    CheckMotion(&enter, master);
 
     /* Ideally, X clients shouldn't see these button releases.  When
      * the pointer leaves a window with buttons down, it means that
@@ -613,6 +618,9 @@ pointer_handle_leave(void *data, struct wl_pointer *pointer,
     Bool focus_lost = FALSE;
 
     xwl_screen->serial = serial;
+    BUG_WARN(xwl_seat->pointer_enter_count == 0);
+    if (xwl_seat->pointer_enter_count > 0)
+        xwl_seat->pointer_enter_count--;
 
     /* The pointer has left a known xwindow, save it for a possible match
      * in sprite_check_lost_focus()
@@ -1916,7 +1924,10 @@ seat_handle_capabilities(void *data, struct wl_seat *seat,
         release_touch(xwl_seat);
     }
 
-    xwl_seat->xwl_screen->expecting_event--;
+    if (xwl_seat->caps_initialized == FALSE) {
+        xwl_seat->caps_initialized = TRUE;
+        xwl_seat->xwl_screen->expecting_event--;
+    }
 }
 
 static void
@@ -1967,6 +1978,7 @@ create_input_device(struct xwl_screen *xwl_screen, uint32_t id, uint32_t version
         wl_registry_bind(xwl_screen->registry, id,
                          &wl_seat_interface, min(version, seat_version));
     xwl_seat->id = id;
+    xwl_seat->caps_initialized = FALSE;
 
     xwl_cursor_init(&xwl_seat->cursor, xwl_seat->xwl_screen,
                     xwl_seat_update_cursor);
@@ -3183,6 +3195,7 @@ sprite_check_lost_focus(SpritePtr sprite, WindowPtr window)
 {
     DeviceIntPtr device, master;
     struct xwl_seat *xwl_seat;
+    Bool pointer_crossing;
 
     for (device = inputInfo.devices; device; device = device->next) {
         /* Ignore non-wayland devices */
@@ -3198,6 +3211,7 @@ sprite_check_lost_focus(SpritePtr sprite, WindowPtr window)
     if (!xwl_seat)
         return FALSE;
 
+    pointer_crossing = (xwl_seat->pointer_enter_count > 0);
     master = GetMaster(device, POINTER_OR_FLOAT);
     if (!master || !master->lastSlave)
         return FALSE;
@@ -3220,7 +3234,7 @@ sprite_check_lost_focus(SpritePtr sprite, WindowPtr window)
          IsParent(xwl_seat->last_focus_window->toplevel, window)))
         return TRUE;
 
-    return FALSE;
+    return !pointer_crossing;
 }
 
 static WindowPtr
@@ -3271,26 +3285,30 @@ xwl_pointer_warp_emulator_set_fake_pos(struct xwl_pointer_warp_emulator *warp_em
 {
     struct zwp_locked_pointer_v1 *locked_pointer =
         warp_emulator->locked_pointer;
+    struct xwl_window *focus_window;
     WindowPtr window;
     int sx, sy;
 
     if (!warp_emulator->locked_pointer)
         return;
 
-    if (!warp_emulator->xwl_seat->focus_window)
+    focus_window = warp_emulator->xwl_seat->focus_window;
+    if (!focus_window)
         return;
 
-    window = warp_emulator->xwl_seat->focus_window->toplevel;
+    window = focus_window->toplevel;
     if (x >= window->drawable.x ||
         y >= window->drawable.y ||
         x < (window->drawable.x + window->drawable.width) ||
         y < (window->drawable.y + window->drawable.height)) {
-        sx = x - window->drawable.x;
-        sy = y - window->drawable.y;
+        sx = round((double) (x - window->drawable.x) /
+                             focus_window->viewport_scale_x);
+        sy = round((double) (y - window->drawable.y) /
+                             focus_window->viewport_scale_y);
         zwp_locked_pointer_v1_set_cursor_position_hint(locked_pointer,
                                                        wl_fixed_from_int(sx),
                                                        wl_fixed_from_int(sy));
-        wl_surface_commit(warp_emulator->xwl_seat->focus_window->surface);
+        wl_surface_commit(focus_window->surface);
     }
 }
 
