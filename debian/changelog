@@ -1,3 +1,9 @@
+xwayland (2:24.1.11-1deepin7) unstable; urgency=medium
+
+  * GLX/DIX memory safety fixes
+
+ -- deepin-ci-robot <packages@deepin.org>  Tue, 09 Jun 2026 10:22:12 +0800
+
 xwayland (2:24.1.11-1deepin6) unstable; urgency=medium
 
   * Composite/GLX/Saver use-after-free
