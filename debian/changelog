@@ -1,3 +1,9 @@
+xwayland (2:24.1.11-1deepin4) unstable; urgency=medium
+
+  * XkbChangeKeycodeRange out-of-bounds access
+
+ -- deepin-ci-robot <packages@deepin.org>  Tue, 09 Jun 2026 10:22:12 +0800
+
 xwayland (2:24.1.11-1deepin3) unstable; urgency=medium
 
   * XkbSetDeviceInfo signedness buffer overflow
