@@ -1,3 +1,9 @@
+xwayland (2:24.1.11-1deepin1) unstable; urgency=medium
+
+  * XkbSetMap keyboard geometry buffer overflow
+
+ -- deepin-ci-robot <packages@deepin.org>  Tue, 09 Jun 2026 10:22:12 +0800
+
 xwayland (2:24.1.11-1) unstable; urgency=medium
 
   * New upstream release.
