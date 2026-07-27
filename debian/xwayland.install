@@ -1,4 +1,7 @@
 usr/bin/Xwayland
+usr/bin/xwayland-screencast-helper
+usr/lib/systemd/user/xwayland-screencast-helper.service
+usr/lib/systemd/user/xwayland-screencast-helper.socket
 usr/lib/*/pkgconfig/
 usr/share/applications/org.freedesktop.Xwayland.desktop
 usr/share/man/man1/Xwayland.1

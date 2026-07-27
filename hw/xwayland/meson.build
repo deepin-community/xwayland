@@ -107,6 +107,15 @@ if build_ei
     endif
 endif
 
+if build_screencast_portal
+    xwayland_dep += [ pipewire_dep, dbus_dep, threads_dep ]
+    srcs += [
+        'xwayland-screencast.c',
+        'xwayland-screencast.h',
+        'xwayland-screencast-protocol.h',
+    ]
+endif
+
 xwayland_glamor = []
 if build_xwayland_glamor
     srcs += [
@@ -165,6 +174,25 @@ xwayland_server = executable(
     install_dir: xwayland_path
 )
 
+if build_screencast_portal
+    executable(
+        'xwayland-screencast-helper',
+        [
+            'xwayland-screencast-helper.c',
+            'xwayland-screencast-protocol.h',
+        ],
+        include_directories: wayland_inc,
+        dependencies: [
+            pipewire_dep,
+            dbus_dep,
+            gdk_pixbuf_dep,
+            threads_dep,
+        ],
+        install: true,
+        install_dir: get_option('bindir')
+    )
+endif
+
 xwayland_vars = [
     'have_glamor=' + build_glamor.to_string(),
     'have_glamor_api=' + build_glamor.to_string(),
@@ -217,6 +245,16 @@ desktop_file = configure_file(
 datadir = join_paths(get_option('prefix'), get_option('datadir'))
 desktopdir = join_paths(datadir, 'applications')
 install_data(desktop_file, install_dir : desktopdir)
+
+if build_screencast_portal
+    install_data(
+        [
+            'systemd/xwayland-screencast-helper.service',
+            'systemd/xwayland-screencast-helper.socket',
+        ],
+        install_dir: join_paths(get_option('prefix'), 'lib', 'systemd', 'user'),
+    )
+endif
 
 meson.override_find_program('Xwayland', xwayland_server)
 meson.override_dependency('xwayland', declare_dependency(

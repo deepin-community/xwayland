@@ -45,6 +45,7 @@ in this Software without prior written authorization from The Open Group.
 #include <X11/Xproto.h>
 #include "misc.h"
 #include "os.h"
+#include "dix.h"
 #include "dixstruct.h"
 #include "resource.h"
 #include "scrnintstr.h"
@@ -612,8 +613,33 @@ ProcShmPutImage(ClientPtr client)
     return Success;
 }
 
+struct shm_get_image_sleep_closure {
+    xShmGetImageReq request;
+};
+
 static int
-ProcShmGetImage(ClientPtr client)
+DoShmGetImage(ClientPtr client, const xShmGetImageReq *stuff);
+
+static Bool
+resume_shm_get_image(ClientPtr client, void *data)
+{
+    struct shm_get_image_sleep_closure *closure = data;
+    int rc;
+
+    if (!client->clientGone) {
+        rc = DoShmGetImage(client, &closure->request);
+        if (rc != Success)
+            SendErrorToClient(client, ShmReqCode, X_ShmGetImage,
+                              client->errorValue, rc);
+    }
+
+    ClientWakeup(client);
+    free(closure);
+    return TRUE;
+}
+
+static int
+DoShmGetImage(ClientPtr client, const xShmGetImageReq *stuff)
 {
     DrawablePtr pDraw;
     long lenPer = 0, length;
@@ -623,10 +649,10 @@ ProcShmGetImage(ClientPtr client)
     VisualID visual = None;
     RegionPtr pVisibleRegion = NULL;
     int rc;
+    Bool image_done;
 
-    REQUEST(xShmGetImageReq);
+    struct shm_get_image_sleep_closure *closure;
 
-    REQUEST_SIZE_MATCH(xShmGetImageReq);
     if ((stuff->format != XYPixmap) && (stuff->format != ZPixmap)) {
         client->errorValue = stuff->format;
         return BadValue;
@@ -635,6 +661,7 @@ ProcShmGetImage(ClientPtr client)
     if (rc != Success)
         return rc;
     VERIFY_SHMPTR(stuff->shmseg, stuff->offset, TRUE, shmdesc, client);
+
     if (pDraw->type == DRAWABLE_WINDOW) {
         if (   /* check for being viewable */
                !((WindowPtr) pDraw)->realized ||
@@ -686,15 +713,43 @@ ProcShmGetImage(ClientPtr client)
     VERIFY_SHMSIZE(shmdesc, stuff->offset, length, client);
     xgi.size = length;
 
+    /* Do not involve the portal until the complete X request, including its
+     * shared-memory destination, has passed validation. */
+    if (stuff->format == ZPixmap && length > 0 &&
+        pDraw->pScreen->PrepareImageHook) {
+        closure = malloc(sizeof *closure);
+        if (!closure)
+            return BadAlloc;
+        closure->request = *stuff;
+
+        if ((*pDraw->pScreen->PrepareImageHook) (client, pDraw)) {
+            if (ClientSleep(client, resume_shm_get_image, closure))
+                return Success;
+
+            if (pDraw->pScreen->CancelImageHook)
+                (*pDraw->pScreen->CancelImageHook) (client, pDraw);
+            free(closure);
+            return BadAlloc;
+        }
+        free(closure);
+    }
+
     if (length == 0) {
         /* nothing to do */
     }
     else if (stuff->format == ZPixmap) {
-        (*pDraw->pScreen->GetImage) (pDraw, stuff->x, stuff->y,
-                                     stuff->width, stuff->height,
-                                     stuff->format, stuff->planeMask,
-                                     shmdesc->addr + stuff->offset);
-        if (pVisibleRegion)
+        image_done = pDraw->pScreen->GetImageHook &&
+            (*pDraw->pScreen->GetImageHook) (client, pDraw,
+                                             stuff->x, stuff->y,
+                                             stuff->width, stuff->height,
+                                             stuff->format, stuff->planeMask,
+                                             shmdesc->addr + stuff->offset);
+        if (!image_done)
+            (*pDraw->pScreen->GetImage) (pDraw, stuff->x, stuff->y,
+                                         stuff->width, stuff->height,
+                                         stuff->format, stuff->planeMask,
+                                         shmdesc->addr + stuff->offset);
+        if (pVisibleRegion && !image_done)
             XaceCensorImage(client, pVisibleRegion,
                     PixmapBytePad(stuff->width, pDraw->depth), pDraw,
                     stuff->x, stuff->y, stuff->width, stuff->height,
@@ -705,12 +760,19 @@ ProcShmGetImage(ClientPtr client)
         length = stuff->offset;
         for (; plane; plane >>= 1) {
             if (stuff->planeMask & plane) {
-                (*pDraw->pScreen->GetImage) (pDraw,
-                                             stuff->x, stuff->y,
-                                             stuff->width, stuff->height,
-                                             stuff->format, plane,
-                                             shmdesc->addr + length);
-                if (pVisibleRegion)
+                image_done = pDraw->pScreen->GetImageHook &&
+                    (*pDraw->pScreen->GetImageHook) (client, pDraw,
+                                                     stuff->x, stuff->y,
+                                                     stuff->width, stuff->height,
+                                                     stuff->format, plane,
+                                                     shmdesc->addr + length);
+                if (!image_done)
+                    (*pDraw->pScreen->GetImage) (pDraw,
+                                                 stuff->x, stuff->y,
+                                                 stuff->width, stuff->height,
+                                                 stuff->format, plane,
+                                                 shmdesc->addr + length);
+                if (pVisibleRegion && !image_done)
                     XaceCensorImage(client, pVisibleRegion,
                             BitmapBytePad(stuff->width), pDraw,
                             stuff->x, stuff->y, stuff->width, stuff->height,
@@ -729,6 +791,15 @@ ProcShmGetImage(ClientPtr client)
     WriteToClient(client, sizeof(xShmGetImageReply), &xgi);
 
     return Success;
+}
+
+static int
+ProcShmGetImage(ClientPtr client)
+{
+    REQUEST(xShmGetImageReq);
+
+    REQUEST_SIZE_MATCH(xShmGetImageReq);
+    return DoShmGetImage(client, stuff);
 }
 
 #ifdef PANORAMIX

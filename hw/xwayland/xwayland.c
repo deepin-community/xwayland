@@ -119,6 +119,10 @@ ddxUseMsg(void)
 #ifdef XWL_HAS_EI_PORTAL
     ErrorF("-enable-ei-portal      use the XDG portal for input emulation\n");
 #endif
+#ifdef XWL_HAS_SCREENCAST_PORTAL
+    ErrorF("-enable-screencast-portal  use the XDG portal for rootless capture\n");
+    ErrorF("-disable-screencast-portal disable the XDG portal capture bridge\n");
+#endif
 }
 
 static int init_fd = -1;
@@ -261,6 +265,12 @@ ddxProcessArgument(int argc, char *argv[], int i)
         return 1;
     }
     else if (strcmp(argv[i], "-enable-ei-portal") == 0) {
+        return 1;
+    }
+    else if (strcmp(argv[i], "-enable-screencast-portal") == 0) {
+        return 1;
+    }
+    else if (strcmp(argv[i], "-disable-screencast-portal") == 0) {
         return 1;
     }
     else if (strcmp(argv[i], "-output") == 0) {
