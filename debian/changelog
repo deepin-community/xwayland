@@ -1,3 +1,9 @@
+xwayland (2:24.1.11-1deepin8) unstable; urgency=medium
+
+  * fix(cve): CVE-2026-56000
+
+ -- deepin-ci-robot <packages@deepin.org>  Thu, 06 Aug 2026 04:04:51 +0800
+
 xwayland (2:24.1.11-1deepin7) unstable; urgency=medium
 
   * GLX/DIX memory safety fixes
