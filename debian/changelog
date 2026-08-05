@@ -1,3 +1,9 @@
+xwayland (2:24.1.11-1deepin9) unstable; urgency=medium
+
+  * fix(cve): CVE-2026-55999
+
+ -- deepin-ci-robot <packages@deepin.org>  Thu, 06 Aug 2026 04:11:37 +0800
+
 xwayland (2:24.1.11-1deepin8) unstable; urgency=medium
 
   * fix(cve): CVE-2026-56000
