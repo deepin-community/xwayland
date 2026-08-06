@@ -1,0 +1,10 @@
+#!/bin/sh
+set -e
+
+if [ "$1" = "purge" ] && command -v systemctl >/dev/null 2>&1; then
+    systemctl --global disable xwayland-screencast-helper.socket >/dev/null 2>&1 || true
+fi
+
+#DEBHELPER#
+
+exit 0

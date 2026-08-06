@@ -2,6 +2,8 @@ option('glamor', type: 'boolean', value: true,
        description: 'Enable glamor (default yes)')
 option('xwayland_ei', type: 'combo', choices: ['socket', 'portal', 'false', 'auto'],
        value: 'auto', description: 'Enable emulated input support on Xwayland')
+option('xwayland_screencast_portal', type: 'combo', choices: ['true', 'false', 'auto'],
+       value: 'auto', description: 'Enable XDG desktop portal screenshot/screencast support for Xwayland root window image reads')
 option('xvfb', type: 'boolean', value: true,
        description: 'Enable Xvfb X server')
 
