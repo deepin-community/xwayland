@@ -1,3 +1,12 @@
+xwayland (2:24.1.11-1deepin10) unstable; urgency=medium
+
+  * fix(cve): CVE-2026-50262 (medium) - glx: fix reversed length check
+    in ChangeDrawableAttributes   Upstream:
+    https://gitlab.freedesktop.org/xorg/xserver/-
+    /commit/6d459e4daf715bea8abdafa8fb130be2f8a1d145
+
+ -- deepin-ci-robot <packages@deepin.org>  Sat, 19 Sep 2026 10:40:42 +0800
+
 xwayland (2:24.1.11-1deepin9) unstable; urgency=medium
 
   * fix(cve): CVE-2026-55999
