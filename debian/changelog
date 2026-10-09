@@ -4,6 +4,10 @@ xwayland (2:24.1.11-1deepin10) unstable; urgency=medium
     grabs referencing a device on removal   Upstream:
     https://gitlab.freedesktop.org/xorg/xserver/-
     /commit/9442a53c137bb9eb61336c6fd39627912d50cc8d.patch
+  * fix(cve): CVE-2026-93518 (unknown) - xkb: widen size_syms, num_syms,
+    size_acts, num_acts to unsigned int   Upstream:
+    https://gitlab.freedesktop.org/xorg/xserver/-
+    /commit/558ba8f784b0f5d4d96948051b2f04c983af20cc
 
  -- deepin-ci-robot <packages@deepin.org>  Sat, 19 Sep 2026 10:40:42 +0800
 
