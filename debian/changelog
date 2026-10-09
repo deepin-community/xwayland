@@ -32,6 +32,10 @@ xwayland (2:24.1.11-1deepin10) unstable; urgency=medium
     window list in present_clear_window_notifies   Upstream:
     https://gitlab.freedesktop.org/xorg/xserver/-
     /commit/a469f98bcfab50dab607ff5ac24037632b0079a3
+  * fix(cve): CVE-2026-93520 (unknown) - [PATCH] xkb: allocate names-
+    >keys to MAP_LENGTH in XkbAllocNames   Upstream:
+    https://gitlab.freedesktop.org/xorg/xserver/-
+    /commit/5ec0535af2bcc93381666dc110abebba8975f8ae
 
  -- deepin-ci-robot <packages@deepin.org>  Sat, 19 Sep 2026 10:40:42 +0800
 
