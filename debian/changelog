@@ -24,6 +24,10 @@ xwayland (2:24.1.11-1deepin10) unstable; urgency=medium
     overwriting request-range symsPerKey entries   Upstream:
     https://gitlab.freedesktop.org/xorg/xserver/-
     /commit/927ee1282d21550807619521bee909ef62ed0571
+  * fix(cve): CVE-2026-93515 (unknown) - present: unlink notifies from
+    window list in present_clear_window_notifies   Upstream:
+    https://gitlab.freedesktop.org/xorg/xserver/-
+    /commit/a469f98bcfab50dab607ff5ac24037632b0079a3
 
  -- deepin-ci-robot <packages@deepin.org>  Sat, 19 Sep 2026 10:40:42 +0800
 
