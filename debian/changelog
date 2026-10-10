@@ -1,3 +1,60 @@
+xwayland (2:24.1.11-1deepin10) unstable; urgency=medium
+
+  * fix(cve): CVE-2026-50262 (medium) - glx: fix reversed length check
+    in ChangeDrawableAttributes   Upstream:
+    https://gitlab.freedesktop.org/xorg/xserver/-
+    /commit/6d459e4daf715bea8abdafa8fb130be2f8a1d145
+  * fix(cve): CVE-2026-93516 (unknown) - [PATCH] dix: remove passive
+    grabs referencing a device on removal   Upstream:
+    https://gitlab.freedesktop.org/xorg/xserver/-
+    /commit/9442a53c137bb9eb61336c6fd39627912d50cc8d.patch
+  * fix(cve): CVE-2026-93518 (unknown) - xkb: widen size_syms, num_syms,
+    size_acts, num_acts to unsigned int   Upstream:
+    https://gitlab.freedesktop.org/xorg/xserver/-
+    /commit/558ba8f784b0f5d4d96948051b2f04c983af20cc
+  * fix(cve): CVE-2026-93517 (unknown) - glx: validate dataBytes against
+    cmdlen in RenderLarge first request   Upstream:
+    https://gitlab.freedesktop.org/xorg/xserver/-
+    /commit/3961cdca467975a7d377f1f7bcd55d52eb3f417a.patch
+  * fix(cve): CVE-2026-93519 (unknown) - Xi: add bounds check for
+    barrier events in input_constrain_cursor   Upstream:
+    https://gitlab.freedesktop.org/xorg/xserver/-
+    /commit/9c3880d0745acefc98ed37e79498dfbe558a0f40
+  * fix(cve): CVE-2026-93521 (unknown) - randr: fix size and offset in
+    RRChangeProviderProperty PrependMode   Upstream:
+    https://gitlab.freedesktop.org/xorg/xserver/-
+    /commit/00ce692c7f6ea1900888a2a24aecf6cba5544ae1
+  * fix(cve): CVE-2026-93524 (unknown) - xkb: fix CheckKeySyms
+    overwriting request-range symsPerKey entries   Upstream:
+    https://gitlab.freedesktop.org/xorg/xserver/-
+    /commit/927ee1282d21550807619521bee909ef62ed0571
+  * fix(cve): CVE-2026-93515 (unknown) - present: unlink notifies from
+    window list in present_clear_window_notifies   Upstream:
+    https://gitlab.freedesktop.org/xorg/xserver/-
+    /commit/a469f98bcfab50dab607ff5ac24037632b0079a3
+  * fix(cve): CVE-2026-93520 (unknown) - [PATCH] xkb: allocate names-
+    >keys to MAP_LENGTH in XkbAllocNames   Upstream:
+    https://gitlab.freedesktop.org/xorg/xserver/-
+    /commit/5ec0535af2bcc93381666dc110abebba8975f8ae
+  * fix(cve): CVE-2026-93536 (unknown) - Xi: clean up gesture sprite
+    traces in WindowGone   Upstream:
+    https://gitlab.freedesktop.org/xorg/xserver/-
+    /commit/4c9c345d2a10baf956fdefa83bb88681f7c840cf.patch
+  * fix(cve): CVE-2026-93523 (unknown) - [PATCH] Xi: validate modifier
+    values in ProcXIPassiveUngrabDevice   Upstream:
+    https://gitlab.freedesktop.org/xorg/xserver/-
+    /commit/aa56160fa213d8767e7da0c076b5c8242703313b.patch
+  * fix(cve): CVE-2026-88812 (unknown) - xkb: NULL text pointer after
+    free in _CheckSetDoodad error path   Upstream:
+    https://gitlab.freedesktop.org/xorg/xserver/-
+    /commit/c724006ee76fb002add50fcb4d97e8c96c279f09.patch
+  * fix(cve): CVE-2026-93522 (unknown) - glamor: size tmp_bits buffer
+    for source coordinate range in upload_boxes   Upstream:
+    https://gitlab.freedesktop.org/xorg/xserver/-
+    /commit/d6deb27b655abae79396bf3aedc2937a10ae2d4f.patch
+
+ -- deepin-ci-robot <packages@deepin.org>  Sat, 19 Sep 2026 10:40:42 +0800
+
 xwayland (2:24.1.11-1deepin9) unstable; urgency=medium
 
   * fix(cve): CVE-2026-55999
