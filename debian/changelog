@@ -32,6 +32,10 @@ xwayland (2:24.1.11-1deepin10) unstable; urgency=medium
     >keys to MAP_LENGTH in XkbAllocNames   Upstream:
     https://gitlab.freedesktop.org/xorg/xserver/-
     /commit/5ec0535af2bcc93381666dc110abebba8975f8ae
+  * fix(cve): CVE-2026-93536 (unknown) - Xi: clean up gesture sprite
+    traces in WindowGone   Upstream:
+    https://gitlab.freedesktop.org/xorg/xserver/-
+    /commit/4c9c345d2a10baf956fdefa83bb88681f7c840cf.patch
 
  -- deepin-ci-robot <packages@deepin.org>  Sat, 19 Sep 2026 10:40:42 +0800
 
