@@ -44,6 +44,10 @@ xwayland (2:24.1.11-1deepin10) unstable; urgency=medium
     values in ProcXIPassiveUngrabDevice   Upstream:
     https://gitlab.freedesktop.org/xorg/xserver/-
     /commit/aa56160fa213d8767e7da0c076b5c8242703313b.patch
+  * fix(cve): CVE-2026-88812 (unknown) - xkb: NULL text pointer after
+    free in _CheckSetDoodad error path   Upstream:
+    https://gitlab.freedesktop.org/xorg/xserver/-
+    /commit/c724006ee76fb002add50fcb4d97e8c96c279f09.patch
 
  -- deepin-ci-robot <packages@deepin.org>  Sat, 19 Sep 2026 10:40:42 +0800
 
