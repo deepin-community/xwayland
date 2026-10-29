@@ -48,6 +48,11 @@ xwayland (2:24.1.11-1deepin10) unstable; urgency=medium
     for source coordinate range in upload_boxes   Upstream:
     https://gitlab.freedesktop.org/xorg/xserver/-
     /commit/d6deb27b655abae79396bf3aedc2937a10ae2d4f.patch
+  * fix(cve): CVE-2026-50258 (high) - xkb: reject key types with
+    num_levels exceeding XkbMaxShiftLevel (incomplete fix of
+    CVE-2025-26597)   Upstream:
+    https://gitlab.freedesktop.org/xorg/xserver/-
+    /commit/543e108516428fc8c3bea91d6563ad266f9a801e
 
  -- deepin-ci-robot <packages@deepin.org>  Sat, 19 Sep 2026 10:40:42 +0800
 
