@@ -323,6 +323,7 @@ xwayland_data.set('XWL_HAS_LIBDECOR', have_libdecor ? '1' : false)
 xwayland_data.set('XWL_HAS_XWAYLAND_EXTENSION', xwaylandproto_dep.found() ? '1' : false)
 xwayland_data.set('XWL_HAS_EI', build_ei)
 xwayland_data.set('XWL_HAS_EI_PORTAL', build_ei_portal)
+xwayland_data.set('XWL_HAS_SCREENCAST_PORTAL', build_screencast_portal)
 
 configure_file(output : 'xwayland-config.h',
                input : 'xwayland-config.h.meson.in',

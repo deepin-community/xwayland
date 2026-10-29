@@ -3,6 +3,7 @@
 include /usr/share/dpkg/pkg-info.mk
 
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+export DEB_CFLAGS_MAINT_APPEND = -Wno-error=array-bounds
 
 SUPPORT = https://www.debian.org/support
 
@@ -12,6 +13,7 @@ SUPPORT = https://www.debian.org/support
 override_dh_auto_configure:
 	dh_auto_configure -- \
 		-Dxwayland_ei=portal \
+		-Dxwayland_screencast_portal=true \
 		-Dbuilder_addr="debian-x@lists.debian.org" \
 		-Dbuilder_string="$(DEB_SOURCE) $(DEB_VERSION_UPSTREAM) ($(SUPPORT))"
 

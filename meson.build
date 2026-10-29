@@ -220,9 +220,15 @@ endif
 
 libei_dep = dependency('libei-1.0', version: '>= 1.0.0', required: get_option('xwayland_ei') in ['portal', 'socket'])
 liboeffis_dep = dependency('liboeffis-1.0', version: '>= 1.0.0', required: get_option('xwayland_ei') == 'portal')
+screencast_portal_option = get_option('xwayland_screencast_portal')
+pipewire_dep = dependency('libpipewire-0.3', required: screencast_portal_option == 'true')
+dbus_dep = dependency('dbus-1', required: screencast_portal_option == 'true')
+gdk_pixbuf_dep = dependency('gdk-pixbuf-2.0', required: screencast_portal_option == 'true')
+threads_dep = dependency('threads', required: screencast_portal_option == 'true')
 
 build_ei = libei_dep.found() and get_option('xwayland_ei') != 'false'
 build_ei_portal = liboeffis_dep.found() and get_option('xwayland_ei') in ['portal', 'auto']
+build_screencast_portal = pipewire_dep.found() and dbus_dep.found() and gdk_pixbuf_dep.found() and threads_dep.found() and screencast_portal_option != 'false'
 
 # Lots of sha1 options, because Linux is about choice :)
 
