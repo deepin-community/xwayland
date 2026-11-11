@@ -16,6 +16,10 @@ xwayland (2:24.1.11-1deepin11) unstable; urgency=medium
     in PutImage   Upstream:
     https://gitlab.freedesktop.org/xorg/xserver/-
     /commit/1376ac1f0edad6bd44dc6db3b4e49370a60d8e2f
+  * fix(cve): CVE-2026-109094 (unknown) - XRes: prevent overflow in
+    resource bytes swap path   Upstream:
+    https://gitlab.freedesktop.org/xorg/xserver/-
+    /commit/a59678e491a762e504829cac069cf37f4ccafe0d.patch
 
  -- deepin-ci-robot <packages@deepin.org>  Wed, 11 Nov 2026 22:04:35 +0800
 
