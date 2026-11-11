@@ -12,6 +12,10 @@ xwayland (2:24.1.11-1deepin11) unstable; urgency=medium
     client ID request size   Upstream:
     https://gitlab.freedesktop.org/xorg/xserver/-
     /commit/a3899d75e180d73f2971af2a402e6fdf19c0339c.patch
+  * fix(cve): CVE-2026-109096 (unknown) - Xv: reject negative image size
+    in PutImage   Upstream:
+    https://gitlab.freedesktop.org/xorg/xserver/-
+    /commit/1376ac1f0edad6bd44dc6db3b4e49370a60d8e2f
 
  -- deepin-ci-robot <packages@deepin.org>  Wed, 11 Nov 2026 22:04:35 +0800
 
