@@ -4,6 +4,10 @@ xwayland (2:24.1.11-1deepin11) unstable; urgency=medium
     shared-memory bounds check   Upstream:
     https://gitlab.freedesktop.org/xorg/xserver/-
     /commit/a4d7800f0f56469a082e3755bfa6b148c707075c.patch
+  * fix(cve): CVE-2026-109903 (unknown) - Xv: reject negative image size
+    in QueryImageAttributes   Upstream:
+    https://gitlab.freedesktop.org/xorg/xserver/-
+    /commit/a11d070e4ea78c6c97a7e88c57277d766cd9050b.patch
 
  -- deepin-ci-robot <packages@deepin.org>  Wed, 11 Nov 2026 22:04:35 +0800
 
