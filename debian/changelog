@@ -24,6 +24,10 @@ xwayland (2:24.1.11-1deepin11) unstable; urgency=medium
     image size calculation   Upstream:
     https://gitlab.freedesktop.org/xorg/xserver/-
     /commit/99e647e914d947a791e92253a071955a9703647a
+  * fix(cve): CVE-2026-109093 (unknown) - XTest: validate valuator range
+    before writing   Upstream:
+    https://gitlab.freedesktop.org/xorg/xserver/-
+    /commit/99ce069ae814b39048543062e073320f14723ee0
 
  -- deepin-ci-robot <packages@deepin.org>  Wed, 11 Nov 2026 22:04:35 +0800
 
