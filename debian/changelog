@@ -20,6 +20,10 @@ xwayland (2:24.1.11-1deepin11) unstable; urgency=medium
     resource bytes swap path   Upstream:
     https://gitlab.freedesktop.org/xorg/xserver/-
     /commit/a59678e491a762e504829cac069cf37f4ccafe0d.patch
+  * fix(cve): CVE-2026-109095 (unknown) - glamor: prevent overflow in Xv
+    image size calculation   Upstream:
+    https://gitlab.freedesktop.org/xorg/xserver/-
+    /commit/99e647e914d947a791e92253a071955a9703647a
 
  -- deepin-ci-robot <packages@deepin.org>  Wed, 11 Nov 2026 22:04:35 +0800
 
