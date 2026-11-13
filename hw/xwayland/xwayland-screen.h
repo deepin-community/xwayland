@@ -65,6 +65,7 @@ struct xwl_screen {
     int has_grab;
     int decorate;
     int enable_ei_portal;
+    int enable_screencast_portal;
     int nokeymap;
     int hidpi;
 
@@ -150,6 +151,8 @@ struct xwl_screen {
     const char *output_name;
 
     uint32_t present_capabilities;
+
+    struct xwl_screencast *screencast;
 };
 
 /* Apps which use randr/vidmode to change the mode when going fullscreen,

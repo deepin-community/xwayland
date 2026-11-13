@@ -1,0 +1,12 @@
+[Unit]
+Description=Xwayland screencast portal helper socket
+Documentation=man:Xwayland(1)
+
+[Socket]
+ListenStream=/tmp/xwayland-screencast-portal-%U.sock
+SocketMode=0666
+RemoveOnStop=yes
+Service=xwayland-screencast-helper.service
+
+[Install]
+WantedBy=sockets.target

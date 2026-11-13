@@ -45,6 +45,7 @@
 #include <dix-config.h>
 #endif
 
+#include "dix.h"
 #include "compint.h"
 #include "xace.h"
 #include "protocol-versions.h"
@@ -222,8 +223,36 @@ ProcCompositeCreateRegionFromBorderClip(ClientPtr client)
     return Success;
 }
 
+struct name_window_pixmap_sleep_closure {
+    xCompositeNameWindowPixmapReq request;
+};
+
 static int
-ProcCompositeNameWindowPixmap(ClientPtr client)
+DoCompositeNameWindowPixmap(ClientPtr client,
+                            const xCompositeNameWindowPixmapReq *stuff);
+
+static Bool
+resume_name_window_pixmap(ClientPtr client, void *data)
+{
+    struct name_window_pixmap_sleep_closure *closure = data;
+    int rc;
+
+    if (!client->clientGone) {
+        rc = DoCompositeNameWindowPixmap(client, &closure->request);
+        if (rc != Success)
+            SendErrorToClient(client, CompositeReqCode,
+                              X_CompositeNameWindowPixmap,
+                              client->errorValue, rc);
+    }
+
+    ClientWakeup(client);
+    free(closure);
+    return TRUE;
+}
+
+static int
+DoCompositeNameWindowPixmap(ClientPtr client,
+                            const xCompositeNameWindowPixmapReq *stuff)
 {
     WindowPtr pWin;
     CompWindowPtr cw;
@@ -231,9 +260,8 @@ ProcCompositeNameWindowPixmap(ClientPtr client)
     ScreenPtr pScreen;
     int rc;
 
-    REQUEST(xCompositeNameWindowPixmapReq);
+    struct name_window_pixmap_sleep_closure *closure;
 
-    REQUEST_SIZE_MATCH(xCompositeNameWindowPixmapReq);
     VERIFY_WINDOW(pWin, stuff->window, client, DixGetAttrAccess);
 
     pScreen = pWin->drawable.pScreen;
@@ -257,6 +285,24 @@ ProcCompositeNameWindowPixmap(ClientPtr client)
     if (rc != Success)
         return rc;
 
+    if (pScreen->PrepareImageHook) {
+        closure = malloc(sizeof *closure);
+        if (!closure)
+            return BadAlloc;
+        closure->request = *stuff;
+
+        if ((*pScreen->PrepareImageHook) (client, &pWin->drawable)) {
+            if (ClientSleep(client, resume_name_window_pixmap, closure))
+                return Success;
+
+            if (pScreen->CancelImageHook)
+                (*pScreen->CancelImageHook) (client, &pWin->drawable);
+            free(closure);
+            return BadAlloc;
+        }
+        free(closure);
+    }
+
     ++pPixmap->refcnt;
 
     if (!AddResource(stuff->pixmap, RT_PIXMAP, (void *) pPixmap))
@@ -270,7 +316,19 @@ ProcCompositeNameWindowPixmap(ClientPtr client)
         }
     }
 
+    if (pScreen->NameWindowPixmapHook)
+        pScreen->NameWindowPixmapHook(client, pWin, pPixmap, stuff->pixmap);
+
     return Success;
+}
+
+static int
+ProcCompositeNameWindowPixmap(ClientPtr client)
+{
+    REQUEST(xCompositeNameWindowPixmapReq);
+
+    REQUEST_SIZE_MATCH(xCompositeNameWindowPixmapReq);
+    return DoCompositeNameWindowPixmap(client, stuff);
 }
 
 static int
@@ -754,6 +812,10 @@ PanoramiXCompositeNameWindowPixmap(ClientPtr client)
 
         if (!AddResource(newPix->info[i].id, RT_PIXMAP, (void *) pPixmap))
             return BadAlloc;
+
+        if (pWin->drawable.pScreen->NameWindowPixmapHook)
+            pWin->drawable.pScreen->NameWindowPixmapHook(client, pWin, pPixmap,
+                                                         newPix->info[i].id);
 
         ++pPixmap->refcnt;
     }

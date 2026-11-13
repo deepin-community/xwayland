@@ -1759,18 +1759,41 @@ SendGraphicsExpose(ClientPtr client, RegionPtr pRgn, XID drawable,
     }
 }
 
-int
-ProcCopyArea(ClientPtr client)
+struct copy_area_sleep_closure {
+    xCopyAreaReq request;
+};
+
+static int
+DoCopyArea(ClientPtr client, const xCopyAreaReq *stuff);
+
+static Bool
+resume_copy_area(ClientPtr client, void *data)
+{
+    struct copy_area_sleep_closure *closure = data;
+    int rc;
+
+    if (!client->clientGone) {
+        rc = DoCopyArea(client, &closure->request);
+        if (rc != Success)
+            SendErrorToClient(client, X_CopyArea, 0,
+                              client->errorValue, rc);
+    }
+
+    ClientWakeup(client);
+    free(closure);
+    return TRUE;
+}
+
+static int
+DoCopyArea(ClientPtr client, const xCopyAreaReq *stuff)
 {
     DrawablePtr pDst;
     DrawablePtr pSrc;
     GC *pGC;
-
-    REQUEST(xCopyAreaReq);
+    struct copy_area_sleep_closure *closure;
     RegionPtr pRgn;
     int rc;
-
-    REQUEST_SIZE_MATCH(xCopyAreaReq);
+    Bool copy_done;
 
     VALIDATE_DRAWABLE_AND_GC(stuff->dstDrawable, pDst, DixWriteAccess);
     if (stuff->dstDrawable != stuff->srcDrawable) {
@@ -1786,9 +1809,36 @@ ProcCopyArea(ClientPtr client)
     else
         pSrc = pDst;
 
-    pRgn = (*pGC->ops->CopyArea) (pSrc, pDst, pGC, stuff->srcX, stuff->srcY,
-                                  stuff->width, stuff->height,
-                                  stuff->dstX, stuff->dstY);
+    if (pSrc->pScreen->PrepareImageHook) {
+        closure = malloc(sizeof *closure);
+        if (!closure)
+            return BadAlloc;
+        closure->request = *stuff;
+
+        if ((*pSrc->pScreen->PrepareImageHook) (client, pSrc)) {
+            if (ClientSleep(client, resume_copy_area, closure))
+                return Success;
+
+            if (pSrc->pScreen->CancelImageHook)
+                (*pSrc->pScreen->CancelImageHook) (client, pSrc);
+            free(closure);
+            return BadAlloc;
+        }
+        free(closure);
+    }
+
+    pRgn = NULL;
+    copy_done = pSrc->pScreen->CopyAreaHook &&
+        (*pSrc->pScreen->CopyAreaHook) (client, pSrc, pDst, pGC,
+                                        stuff->srcX, stuff->srcY,
+                                        stuff->width, stuff->height,
+                                        stuff->dstX, stuff->dstY,
+                                        &pRgn);
+    if (!copy_done)
+        pRgn = (*pGC->ops->CopyArea) (pSrc, pDst, pGC,
+                                      stuff->srcX, stuff->srcY,
+                                      stuff->width, stuff->height,
+                                      stuff->dstX, stuff->dstY);
     if (pGC->graphicsExposures) {
         SendGraphicsExpose(client, pRgn, stuff->dstDrawable, X_CopyArea, 0);
         if (pRgn)
@@ -1796,6 +1846,15 @@ ProcCopyArea(ClientPtr client)
     }
 
     return Success;
+}
+
+int
+ProcCopyArea(ClientPtr client)
+{
+    REQUEST(xCopyAreaReq);
+
+    REQUEST_SIZE_MATCH(xCopyAreaReq);
+    return DoCopyArea(client, stuff);
 }
 
 int
@@ -2066,6 +2125,110 @@ ReformatImage(char *base, int nbytes, int bpp, int order)
 #define ReformatImage(b,n,bpp,o)
 #endif
 
+static int
+DoGetImage(ClientPtr client, int format, Drawable drawable,
+           int x, int y, int width, int height,
+           Mask planemask);
+
+struct get_image_sleep_closure {
+    int format;
+    Drawable drawable;
+    int x;
+    int y;
+    int width;
+    int height;
+    Mask planemask;
+};
+
+static Bool
+resume_get_image(ClientPtr client, void *data)
+{
+    struct get_image_sleep_closure *closure = data;
+    int rc;
+
+    if (!client->clientGone) {
+        rc = DoGetImage(client, closure->format, closure->drawable,
+                        closure->x, closure->y,
+                        closure->width, closure->height,
+                        closure->planemask);
+        if (rc != Success)
+            SendErrorToClient(client, X_GetImage, 0,
+                              client->errorValue, rc);
+    }
+
+    ClientWakeup(client);
+    free(closure);
+    return TRUE;
+}
+
+static Bool
+try_screencast_portal_get_image_reply(ClientPtr client,
+                                      DrawablePtr pDraw,
+                                      int format,
+                                      int x, int y,
+                                      int width, int height,
+                                      Mask planemask,
+                                      VisualID visual)
+{
+    ScreenPtr pScreen;
+    WindowPtr pWin;
+    xGetImageReply xgi;
+    long widthBytesLine, length;
+    char *pBuf;
+    Bool image_done;
+
+    if (!pDraw || !pDraw->pScreen)
+        return FALSE;
+
+    pScreen = pDraw->pScreen;
+    if (!pScreen->GetImageHook || format != ZPixmap ||
+        pDraw->type != DRAWABLE_WINDOW)
+        return FALSE;
+
+    pWin = (WindowPtr) pDraw;
+    if (pWin != pScreen->root)
+        return FALSE;
+
+    widthBytesLine = PixmapBytePad(width, pDraw->depth);
+    if (height != 0 && widthBytesLine >= (INT32_MAX / height))
+        return FALSE;
+
+    length = widthBytesLine * height;
+    if (length < 0 || length > INT32_MAX)
+        return FALSE;
+
+    pBuf = calloc(1, length ? length : 1);
+    if (!pBuf)
+        return FALSE;
+
+    image_done = (*pScreen->GetImageHook) (client, pDraw,
+                                           x, y, width, height,
+                                           format, planemask, pBuf);
+    if (!image_done) {
+        free(pBuf);
+        return FALSE;
+    }
+
+    xgi = (xGetImageReply) {
+        .type = X_Reply,
+        .sequenceNumber = client->sequence,
+        .length = bytes_to_int32(length),
+        .visual = visual,
+        .depth = pDraw->depth
+    };
+
+    WriteReplyToClient(client, sizeof(xGetImageReply), &xgi);
+
+    if (length) {
+        ReformatImage(pBuf, (int) length, BitsPerPixel(pDraw->depth),
+                      ClientOrder(client));
+        WriteToClient(client, (int) length, pBuf);
+    }
+
+    free(pBuf);
+    return TRUE;
+}
+
 /* 64-bit server notes: the protocol restricts padding of images to
  * 8-, 16-, or 32-bits. We would like to have 64-bits for the server
  * to use internally. Removes need for internal alignment checking.
@@ -2150,6 +2313,7 @@ DoGetImage(ClientPtr client, int format, Drawable drawable,
     char *pBuf;
     xGetImageReply xgi;
     RegionPtr pVisibleRegion = NULL;
+    Bool image_done;
 
     if ((format != XYPixmap) && (format != ZPixmap)) {
         client->errorValue = format;
@@ -2166,6 +2330,9 @@ DoGetImage(ClientPtr client, int format, Drawable drawable,
 
     if (pDraw->type == DRAWABLE_WINDOW) {
         WindowPtr pWin = (WindowPtr) pDraw;
+        struct get_image_sleep_closure *closure;
+
+        xgi.visual = wVisual(pWin);
 
         /* "If the drawable is a window, the window must be viewable ... or a
          * BadMatch error results" */
@@ -2179,6 +2346,40 @@ DoGetImage(ClientPtr client, int format, Drawable drawable,
             y < -wBorderWidth(pWin) ||
             y + height > wBorderWidth(pWin) + (int) pDraw->height)
             return BadMatch;
+
+        if (pWin == pDraw->pScreen->root) {
+            if (format == ZPixmap && width > 0 && height > 0 &&
+                pDraw->pScreen->PrepareImageHook) {
+                closure = malloc(sizeof *closure);
+                if (!closure)
+                    return BadAlloc;
+                *closure = (struct get_image_sleep_closure) {
+                    .format = format,
+                    .drawable = drawable,
+                    .x = x,
+                    .y = y,
+                    .width = width,
+                    .height = height,
+                    .planemask = planemask,
+                };
+
+                if ((*pDraw->pScreen->PrepareImageHook) (client, pDraw)) {
+                    if (ClientSleep(client, resume_get_image, closure))
+                        return Success;
+
+                    if (pDraw->pScreen->CancelImageHook)
+                        (*pDraw->pScreen->CancelImageHook) (client, pDraw);
+                    free(closure);
+                    return BadAlloc;
+                }
+                free(closure);
+            }
+
+            if (try_screencast_portal_get_image_reply(client, pDraw, format,
+                                                      x, y, width, height,
+                                                      planemask, xgi.visual))
+                return Success;
+        }
 
         relx += pDraw->x;
         rely += pDraw->y;
@@ -2195,8 +2396,6 @@ DoGetImage(ClientPtr client, int format, Drawable drawable,
         else {
             pBoundingDraw = (DrawablePtr) pDraw->pScreen->root;
         }
-
-        xgi.visual = wVisual(pWin);
     }
     else {
         pBoundingDraw = pDraw;
@@ -2277,13 +2476,22 @@ DoGetImage(ClientPtr client, int format, Drawable drawable,
         linesDone = 0;
         while (height - linesDone > 0) {
             nlines = min(linesPerBuf, height - linesDone);
-            (*pDraw->pScreen->GetImage) (pDraw,
-                                         x,
-                                         y + linesDone,
-                                         width,
-                                         nlines,
-                                         format, planemask, (void *) pBuf);
-            if (pVisibleRegion)
+            image_done = pDraw->pScreen->GetImageHook &&
+                (*pDraw->pScreen->GetImageHook) (client, pDraw,
+                                                 x,
+                                                 y + linesDone,
+                                                 width,
+                                                 nlines,
+                                                 format, planemask,
+                                                 (void *) pBuf);
+            if (!image_done)
+                (*pDraw->pScreen->GetImage) (pDraw,
+                                             x,
+                                             y + linesDone,
+                                             width,
+                                             nlines,
+                                             format, planemask, (void *) pBuf);
+            if (pVisibleRegion && !image_done)
                 XaceCensorImage(client, pVisibleRegion, widthBytesLine,
                                 pDraw, x, y + linesDone, width,
                                 nlines, format, pBuf);
@@ -2304,13 +2512,23 @@ DoGetImage(ClientPtr client, int format, Drawable drawable,
                 linesDone = 0;
                 while (height - linesDone > 0) {
                     nlines = min(linesPerBuf, height - linesDone);
-                    (*pDraw->pScreen->GetImage) (pDraw,
-                                                 x,
-                                                 y + linesDone,
-                                                 width,
-                                                 nlines,
-                                                 format, plane, (void *) pBuf);
-                    if (pVisibleRegion)
+                    image_done = pDraw->pScreen->GetImageHook &&
+                        (*pDraw->pScreen->GetImageHook) (client, pDraw,
+                                                         x,
+                                                         y + linesDone,
+                                                         width,
+                                                         nlines,
+                                                         format, plane,
+                                                         (void *) pBuf);
+                    if (!image_done)
+                        (*pDraw->pScreen->GetImage) (pDraw,
+                                                     x,
+                                                     y + linesDone,
+                                                     width,
+                                                     nlines,
+                                                     format, plane,
+                                                     (void *) pBuf);
+                    if (pVisibleRegion && !image_done)
                         XaceCensorImage(client, pVisibleRegion,
                                         widthBytesLine,
                                         pDraw, x, y + linesDone, width,
@@ -4131,4 +4349,3 @@ DetachOffloadGPU(ScreenPtr secondary)
     assert(secondary->is_offload_secondary);
     secondary->is_offload_secondary = FALSE;
 }
-

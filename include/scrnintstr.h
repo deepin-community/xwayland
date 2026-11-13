@@ -115,6 +115,41 @@ typedef void (*GetImageProcPtr) (DrawablePtr /*pDrawable */ ,
                                  unsigned long /*planeMask */ ,
                                  char * /*pdstLine */ );
 
+typedef Bool (*GetImageHookProcPtr) (ClientPtr /*client */ ,
+                                     DrawablePtr /*pDrawable */ ,
+                                     int /*sx */ ,
+                                     int /*sy */ ,
+                                     int /*w */ ,
+                                     int /*h */ ,
+                                     unsigned int /*format */ ,
+                                     unsigned long /*planeMask */ ,
+                                     char * /*pdstLine */ );
+
+/* Return TRUE when the requesting client must be suspended before an image
+ * hook can run.  The DIX request handler owns the sleep continuation. */
+typedef Bool (*PrepareImageHookProcPtr) (ClientPtr /*client */ ,
+                                         DrawablePtr /*pDrawable */ );
+
+typedef void (*CancelImageHookProcPtr) (ClientPtr /*client */ ,
+                                        DrawablePtr /*pDrawable */ );
+
+typedef Bool (*CopyAreaHookProcPtr) (ClientPtr /*client */ ,
+                                     DrawablePtr /*pSrcDrawable */ ,
+                                     DrawablePtr /*pDstDrawable */ ,
+                                     GCPtr /*pGC */ ,
+                                     int /*srcx */ ,
+                                     int /*srcy */ ,
+                                     int /*width */ ,
+                                     int /*height */ ,
+                                     int /*dstx */ ,
+                                     int /*dsty */ ,
+                                     RegionPtr * /*pExposed */ );
+
+typedef Bool (*NameWindowPixmapHookProcPtr) (ClientPtr /*client */ ,
+                                             WindowPtr /*pWin */ ,
+                                             PixmapPtr /*pPixmap */ ,
+                                             CARD32 /*pixmap_id */ );
+
 typedef void (*GetSpansProcPtr) (DrawablePtr /*pDrawable */ ,
                                  int /*wMax */ ,
                                  DDXPointPtr /*ppt */ ,
@@ -526,6 +561,11 @@ typedef struct _Screen {
     QueryBestSizeProcPtr QueryBestSize;
     SaveScreenProcPtr SaveScreen;
     GetImageProcPtr GetImage;
+    PrepareImageHookProcPtr PrepareImageHook;
+    CancelImageHookProcPtr CancelImageHook;
+    GetImageHookProcPtr GetImageHook;
+    CopyAreaHookProcPtr CopyAreaHook;
+    NameWindowPixmapHookProcPtr NameWindowPixmapHook;
     GetSpansProcPtr GetSpans;
     SourceValidateProcPtr SourceValidate;
 

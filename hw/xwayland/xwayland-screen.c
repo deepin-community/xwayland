@@ -27,6 +27,7 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 #include <errno.h>
 
@@ -58,6 +59,9 @@
 #endif
 #ifdef XWL_HAS_GLAMOR
 #include "xwayland-glamor.h"
+#endif
+#ifdef XWL_HAS_SCREENCAST_PORTAL
+#include "xwayland-screencast.h"
 #endif
 
 #ifdef MITSHM
@@ -228,6 +232,59 @@ xwl_root_window_finalized_callback(CallbackListPtr *pcbl,
     DeleteCallback(&RootWindowFinalizeCallback, xwl_root_window_finalized_callback, screen);
 }
 
+#ifdef XWL_HAS_SCREENCAST_PORTAL
+static Bool
+xwl_prepare_image_hook(ClientPtr client, DrawablePtr drawable)
+{
+    struct xwl_screen *xwl_screen = xwl_screen_get(drawable->pScreen);
+
+    return xwl_screencast_prepare_image(xwl_screen, client, drawable);
+}
+
+static void
+xwl_cancel_image_hook(ClientPtr client, DrawablePtr drawable)
+{
+    struct xwl_screen *xwl_screen = xwl_screen_get(drawable->pScreen);
+
+    xwl_screencast_cancel_image(xwl_screen, client);
+}
+
+static Bool
+xwl_get_image_hook(ClientPtr client, DrawablePtr drawable,
+                   int x, int y, int width, int height,
+                   unsigned int format, unsigned long plane_mask, char *dst)
+{
+    struct xwl_screen *xwl_screen = xwl_screen_get(drawable->pScreen);
+
+    return xwl_screencast_get_image(xwl_screen, client, drawable,
+                                    x, y, width, height, format,
+                                    plane_mask, dst);
+}
+
+static Bool
+xwl_copy_area_hook(ClientPtr client, DrawablePtr src, DrawablePtr dst, GCPtr gc,
+                   int src_x, int src_y, int width, int height,
+                   int dst_x, int dst_y, RegionPtr *exposed)
+{
+    struct xwl_screen *xwl_screen = xwl_screen_get(src->pScreen);
+
+    return xwl_screencast_copy_area(xwl_screen, client, src, dst, gc,
+                                    src_x, src_y, width, height,
+                                    dst_x, dst_y, exposed);
+}
+
+static Bool
+xwl_name_window_pixmap_hook(ClientPtr client, WindowPtr window, PixmapPtr pixmap,
+                            CARD32 pixmap_id)
+{
+    struct xwl_screen *xwl_screen = xwl_screen_get(window->drawable.pScreen);
+
+    return xwl_screencast_name_window_pixmap(xwl_screen, client, window, pixmap,
+                                             pixmap_id);
+}
+
+#endif
+
 Bool
 xwl_close_screen(ScreenPtr screen)
 {
@@ -237,6 +294,16 @@ xwl_close_screen(ScreenPtr screen)
     struct xwl_wl_surface *xwl_wl_surface, *xwl_wl_surface_next;
 #ifdef XWL_HAS_GLAMOR
     xwl_dmabuf_feedback_destroy(&xwl_screen->default_feedback);
+#endif
+#ifdef XWL_HAS_SCREENCAST_PORTAL
+    if (xwl_screen->screencast) {
+        xwl_screencast_fini(xwl_screen);
+        screen->PrepareImageHook = NULL;
+        screen->CancelImageHook = NULL;
+        screen->GetImageHook = NULL;
+        screen->CopyAreaHook = NULL;
+        screen->NameWindowPixmapHook = NULL;
+    }
 #endif
     DeleteCallback(&PropertyStateCallback, xwl_property_callback, screen);
 #ifdef XACE
@@ -887,6 +954,10 @@ xwl_screen_init(ScreenPtr pScreen, int argc, char **argv)
     dixSetPrivate(&pScreen->devPrivates, &xwl_screen_private_key, xwl_screen);
     xwl_screen->screen = pScreen;
 
+#ifdef XWL_HAS_SCREENCAST_PORTAL
+    xwl_screen->enable_screencast_portal = 1;
+#endif
+
 #ifdef XWL_HAS_EI
     if (!xwayland_ei_init())
         return FALSE;
@@ -965,6 +1036,16 @@ xwl_screen_init(ScreenPtr pScreen, int argc, char **argv)
             ErrorF("This build does not have XDG portal support\n");
 #endif
         }
+        else if (strcmp(argv[i], "-enable-screencast-portal") == 0) {
+#ifdef XWL_HAS_SCREENCAST_PORTAL
+            xwl_screen->enable_screencast_portal = 1;
+#else
+            ErrorF("This build does not have XDG screencast portal support\n");
+#endif
+        }
+        else if (strcmp(argv[i], "-disable-screencast-portal") == 0) {
+            xwl_screen->enable_screencast_portal = 0;
+        }
         else if (strcmp(argv[i], "-nokeymap") == 0) {
             xwl_screen->nokeymap = 1;
         }
@@ -977,6 +1058,7 @@ xwl_screen_init(ScreenPtr pScreen, int argc, char **argv)
         use_fixed_size = 1;
         xwl_screen->width = xwl_width;
         xwl_screen->height = xwl_height;
+        xwl_screen->enable_screencast_portal = 0;
     } else if (use_fixed_size) {
         ErrorF("error, cannot set a geometry when running rootless\n");
         return FALSE;
@@ -1113,6 +1195,20 @@ xwl_screen_init(ScreenPtr pScreen, int argc, char **argv)
     if (xwl_screen->glamor && !xwl_glamor_init(xwl_screen)) {
        ErrorF("Failed to initialize glamor, falling back to sw\n");
        xwl_screen->glamor = XWL_GLAMOR_NONE;
+    }
+#endif
+
+#ifdef XWL_HAS_SCREENCAST_PORTAL
+    if (xwl_screen->enable_screencast_portal) {
+        if (!xwl_screencast_init(xwl_screen))
+            return FALSE;
+
+        pScreen->PrepareImageHook = xwl_prepare_image_hook;
+        pScreen->CancelImageHook = xwl_cancel_image_hook;
+        pScreen->GetImageHook = xwl_get_image_hook;
+        pScreen->CopyAreaHook = xwl_copy_area_hook;
+        pScreen->NameWindowPixmapHook = xwl_name_window_pixmap_hook;
+        ErrorF("Xwayland screencast portal: enabled for rootless capture\n");
     }
 #endif
 

@@ -1,0 +1,9 @@
+[Unit]
+Description=Xwayland screencast portal helper
+Documentation=man:Xwayland(1)
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/xwayland-screencast-helper
+Restart=on-failure
+TimeoutStopSec=5s
